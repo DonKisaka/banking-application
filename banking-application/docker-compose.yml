@@ -1,0 +1,55 @@
+services:
+  postgres-db:
+    image: 'postgres:latest'
+    container_name: hdfc-db
+    restart: unless-stopped
+    environment:
+      - 'POSTGRES_USER=bankingsystem'
+      - 'POSTGRES_PASSWORD=bankingsystempassword'
+      - 'POSTGRES_DB=hdfc_banking'
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - hdfc-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bankingsystem -d hdfc_banking"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: hdfc-cache
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    networks:
+      - hdfc-network
+
+  hdfc-app:
+    build: .
+    container_name: hdfc-banking-app
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-db:5432/hdfc_banking
+      SPRING_DATASOURCE_USERNAME: bankingsystem
+      SPRING_DATASOURCE_PASSWORD: bankingsystempassword
+      SPRING_PROFILES_ACTIVE: docker
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - hdfc-network
+
+volumes:
+  postgres-data:
+
+networks:
+  hdfc-network:
+    driver: bridge

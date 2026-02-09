@@ -31,15 +31,15 @@ public class Transaction {
     @Column(name = "transaction_uuid", unique = true, nullable = false)
     private UUID transactionUuid;
 
-    @Column(name = "transaction_reference", unique = true, nullable = false)
+    @Column(name = "transaction_reference", unique = true, nullable = false, updatable = false)
     private String transactionReference;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "from_account_id")
+    @JoinColumn(name = "source_account_id")
     private Account sourceAccount;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "to_account_id")
+    @JoinColumn(name = "target_account_id")
     private Account targetAccount;
 
     @Column(precision = 19, scale = 4, nullable = false)
@@ -83,6 +83,20 @@ public class Transaction {
     @CreationTimestamp
     @Column(name = "created_at", updatable = false, nullable = false)
     private LocalDateTime createdAt;
+
+    @Column(name = "completed_at")
+    private LocalDateTime completedAt;
+
+    @PrePersist
+    protected void onCreate() {
+        if (transactionUuid == null) {
+            transactionUuid = UUID.randomUUID();
+        }
+        if (transactionReference == null) {
+            this.transactionReference = "HDFC-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();;
+        }
+    }
+
 
 
 

@@ -10,7 +10,9 @@ import java.time.LocalDateTime;
 @Table(name = "fraud_alerts",
   indexes = {
           @Index(name = "idx_fraud_status", columnList = "status"),
-          @Index(name = "idx_fraud_risk_score", columnList = "risk_score")
+          @Index(name = "idx_fraud_risk_score", columnList = "risk_score"),
+          @Index(name = "idx_fraud_transaction_id", columnList = "transaction_id"),
+          @Index(name = "idx_fraud_user_id", columnList = "user_id"),
   })
 @Getter
 @Setter

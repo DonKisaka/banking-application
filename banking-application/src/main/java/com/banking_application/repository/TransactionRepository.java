@@ -18,6 +18,6 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
     @Query("SELECT t FROM Transaction t WHERE t.transactionReference = :transactionReference")
     Optional<Transaction> findByTransactionReference(@Param("transactionReference") String transactionReference);
 
-    @Query("SELECT t FROM Transaction t WHERE t.amount > :threshhold AND t.createdAt > :since")
+    @Query("SELECT t FROM Transaction t WHERE t.amount > :threshold AND t.createdAt > :since")
     List<Transaction> findHighValueTransactions(@Param("threshold") BigDecimal threshold, @Param("since") LocalDateTime since);
 }

@@ -29,25 +29,26 @@ public class AuditLog {
     @JoinColumn(name = "user_id")
     private User user;
 
+    @Column(nullable = false, updatable = false)
     private String action;
 
-    @Column(name = "ip_address")
+    @Column(name = "ip_address", updatable = false)
     private String ipAddress;
 
-    @Column(name = "user_agent")
+    @Column(name = "user_agent", updatable = false)
     private String userAgent;
 
-    @Column(name = "affected_resource")
+    @Column(name = "affected_resource", updatable = false)
     private String affectedResource;
 
     @Enumerated(EnumType.STRING)
     @Builder.Default
     private AuditStatus outcome = AuditStatus.SUCCESS;
 
-    @Column(columnDefinition = "TEXT")
+    @Column(columnDefinition = "TEXT", updatable = false)
     private String details;
 
-    @Column(name = "error_message")
+    @Column(name = "error_message", updatable = false)
     private String errorMessage;
 
 

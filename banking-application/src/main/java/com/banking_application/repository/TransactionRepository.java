@@ -13,10 +13,9 @@ import java.util.List;
 import java.util.Optional;
 
 public interface TransactionRepository extends JpaRepository<Transaction, Long> {
-    List<Transaction> findBySourceAccountOrTargetAccountOrderByTimestampDesc(Account source, Account target);
+    List<Transaction> findBySourceAccountOrTargetAccountOrderByCreatedAtDesc(Account source, Account target);
 
-    @Query("SELECT t FROM Transaction t WHERE t.transactionReference = :transactionReference")
-    Optional<Transaction> findByTransactionReference(@Param("transactionReference") String transactionReference);
+    Optional<Transaction> findByTransactionReference(String transactionReference);
 
     @Query("SELECT t FROM Transaction t WHERE t.amount > :threshold AND t.createdAt > :since")
     List<Transaction> findHighValueTransactions(@Param("threshold") BigDecimal threshold, @Param("since") LocalDateTime since);

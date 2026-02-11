@@ -20,7 +20,7 @@ public interface FraudAlertRepository extends JpaRepository <FraudAlert, Long> {
 
     Optional<FraudAlert> findByTransaction(Transaction transaction);
 
-    List<FraudAlert> findByUserOrderByCreatedAtDesc(User user);
+    Page<FraudAlert> findByUserOrderByCreatedAtDesc(User user, Pageable pageable);
 
     boolean existsByUserAndStatus(User user, FraudStatus status);
 }

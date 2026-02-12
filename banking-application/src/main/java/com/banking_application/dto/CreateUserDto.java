@@ -2,6 +2,7 @@ package com.banking_application.dto;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 
 public record CreateUserDto(
         @NotBlank(message = "Username is required")
@@ -12,6 +13,7 @@ public record CreateUserDto(
         String email,
 
         @NotBlank(message = "Password is required")
+        @Size(min = 8, message = "Password must be at least 8 characters")
         String password,
 
         @NotBlank(message = "Phone number is required")

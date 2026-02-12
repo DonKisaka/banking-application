@@ -10,10 +10,12 @@ import java.math.BigDecimal;
 public record WithdrawalRequestDto(
         @NotBlank(message = "Account number is required")
         String accountNumber,
+
         @NotNull(message = "Amount is required")
         @DecimalMin(value = "0.01", message = "Amount must be at least 0.01")
         @Digits(integer = 15, fraction = 4, message = "Invalid amount format")
         BigDecimal amount,
+
         String description,
         @NotBlank
         String securityToken

@@ -16,9 +16,5 @@ public record DepositRequestDto(
         @Digits(integer = 15, fraction = 4, message = "Invalid amount format")
         BigDecimal amount,
 
-        @NotBlank(message = "Transaction source is required")
-        String transactionSource,
-
         String description
-
 ) {}

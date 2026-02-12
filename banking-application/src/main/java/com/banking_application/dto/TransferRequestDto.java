@@ -1,16 +1,22 @@
 package com.banking_application.dto;
 
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 
 import java.math.BigDecimal;
 
 public record TransferRequestDto(
-        @NotBlank
+        @NotBlank(message = "Source account number is required")
         String sourceAccountNumber,
 
-        @NotBlank
+        @NotBlank(message = "Target account number is required")
         String targetAccountNumber,
 
+        @NotNull(message = "Amount is required")
+        @DecimalMin(value = "0.01", message = "Amount must be at least 0.01")
+        @Digits(integer = 15, fraction = 4, message = "Invalid amount format")
         BigDecimal amount,
 
         String description

@@ -9,6 +9,7 @@ import java.time.LocalDateTime;
 public record TransactionResponse(
    String transactionReference,
    BigDecimal amount,
+   String currency,
    TransactionType type,
    TransactionStatus status,
    LocalDateTime timestamp,

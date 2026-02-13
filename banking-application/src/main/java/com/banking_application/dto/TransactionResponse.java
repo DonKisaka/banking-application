@@ -14,5 +14,6 @@ public record TransactionResponse(
    TransactionStatus status,
    LocalDateTime timestamp,
    String description,
-   String targetAccountName
+   String sourceAccountNumber,
+   String targetAccountNumber
 ) {}

@@ -24,11 +24,11 @@ public interface TransactionMapper {
     @Mapping(target = "ipAddress", ignore = true)
     @Mapping(target = "location", ignore = true)
     @Mapping(target = "deviceInfo", ignore = true)
-    @Mapping(target = "currency", constant = "KSH")
+    @Mapping(target = "currency", ignore = true)
     Transaction toEntity(TransferRequestDto request);
 
 
-    @Mapping(target = "sourceAccountNumber", source = "sourceAccount.accountNumber")
+    @Mapping(target = "sourceAccountNumber",  source = "sourceAccount.accountNumber")
     @Mapping(target = "targetAccountNumber", source = "targetAccount.accountNumber")
     TransactionResponse toDto(Transaction transaction);
 

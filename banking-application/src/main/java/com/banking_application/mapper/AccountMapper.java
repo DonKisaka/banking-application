@@ -8,7 +8,6 @@ import org.mapstruct.Mapping;
 
 @Mapper(componentModel = "spring")
 public interface AccountMapper {
-    @Mapping(target = "userUuid", source = "user.userUuid")
     AccountResponseDto toDto(Account account);
 
     @Mapping(target = "id", ignore = true)
@@ -17,8 +16,8 @@ public interface AccountMapper {
     @Mapping(target = "accountUuid", ignore = true)
     @Mapping(target = "accountNumber", ignore = true)
     @Mapping(target = "status", constant = "ACTIVE")
-    @Mapping(target = "interestRate", expression = "java(getDefaultInterestRate(request.accountType()))")
-    @Mapping(target = "minimumBalance", expression = "java(getDefaultMinimumBalance(request.accountType()))")
+    @Mapping(target = "interestRate", ignore = true)
+    @Mapping(target = "minimumBalance", ignore = true)
     @Mapping(target = "overDraftLimit", ignore = true)
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)

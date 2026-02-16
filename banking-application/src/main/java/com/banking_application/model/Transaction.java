@@ -14,8 +14,8 @@ import java.util.UUID;
          @Index(name = "idx_transaction_reference", columnList = "transaction_reference"),
          @Index(name = "idx_transaction_status", columnList = "transaction_status"),
          @Index(name = "idx_transaction_created_at", columnList = "created_at"),
-         @Index(name = "idx_source_account", columnList = "from_account_id"),
-         @Index(name = "idx_target_account", columnList = "to_account_id")
+         @Index(name = "idx_source_account", columnList = "source_account_id"),
+         @Index(name = "idx_target_account", columnList = "target_account_id")
  })
 @Getter
 @Setter

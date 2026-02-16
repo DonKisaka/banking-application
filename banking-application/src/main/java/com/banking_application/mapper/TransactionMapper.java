@@ -13,6 +13,8 @@ public interface TransactionMapper {
 
     @Mapping(target = "sourceAccount", ignore = true)
     @Mapping(target = "targetAccount", ignore = true)
+    @Mapping(target = "id",  ignore = true)
+    @Mapping(target = "transactionUuid",  ignore = true)
     @Mapping(target = "transactionReference", ignore = true)
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "completedAt", ignore = true)

@@ -122,6 +122,11 @@
             <artifactId>jjwt-jackson</artifactId>
             <version>0.13.0</version>
         </dependency>
+        <dependency>
+            <groupId>com.webauthn4j</groupId>
+            <artifactId>webauthn4j-core</artifactId>
+            <version>0.31.0.RELEASE</version>
+        </dependency>
 	</dependencies>
 
 	<build>

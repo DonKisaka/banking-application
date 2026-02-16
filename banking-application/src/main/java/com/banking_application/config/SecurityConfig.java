@@ -2,8 +2,10 @@ package com.banking_application.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.AuthenticationProvider;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -11,10 +13,11 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
-import java.awt.*;
-import java.net.http.HttpHeaders;
+import java.util.List;
 
 @Configuration
 @EnableWebSecurity
@@ -31,42 +34,65 @@ public class SecurityConfig {
 
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http, CorsConfigurationSource corsConfigurationSource) throws Exception {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .authorizeHttpRequests(authRequests -> authRequests
-                        .requestMatchers("/api/v1/auth/**")
-                        .permitAll()
-                        .requestMatchers( "/webauthn/register/**",     // Passkey registration
-                                "/webauthn/authenticate/**")
-                        .permitAll()
+                        .requestMatchers("/api/v1/auth/**").permitAll()
+                        .requestMatchers(
+                                "/webauthn/register/**",
+                                "/webauthn/authenticate/**"
+                        ).permitAll()
+                        .requestMatchers(
+                                "/login",
+                                "/login/**",
+                                "/ott/generate"
+                        ).permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/manager/**").hasAnyRole("ADMIN", "MANAGER")
-                        .anyRequest()
-                        .authenticated()
+                        .anyRequest().authenticated()
                 )
 
+                .formLogin(Customizer.withDefaults())
+
                 .webAuthn(wa -> wa
-                        .allowedOrigins("http://localhost:8080")
-                        .rpName("HDFC Net Banking")
                         .rpId("localhost")
+                        .rpName("HDFC Net Banking")
+                        .allowedOrigins("http://localhost:8080")
                 )
 
                 .oneTimeTokenLogin(ott ->
                         ott.tokenGenerationSuccessHandler((request, response, oneTimeToken) -> {
-
-                            System.out.println("please visit http://localhost:8080/login/ott?token=" + oneTimeToken.getTokenValue());
+                            String magicLink = "http://localhost:8080/login/ott?token=" + oneTimeToken.getTokenValue();
+                            System.out.println();
+                            System.out.println("========== MAGIC LINK ==========");
+                            System.out.println(magicLink);
+                            System.out.println("================================");
+                            System.out.println();
 
                             response.setHeader(HttpHeaders.CONTENT_TYPE, MediaType.TEXT_PLAIN_VALUE);
-                            response.getWriter().println("You've got the console mail!");
+                            response.getWriter().println("Magic link sent! Check the server console.");
                             response.getWriter().flush();
                         }))
-                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
                 .authenticationProvider(authenticationProvider)
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
+    }
 
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration config = new CorsConfiguration();
+        config.setAllowedOrigins(List.of("http://localhost:8080", "http://localhost:3000"));
+        config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        config.setAllowedHeaders(List.of("*"));
+        config.setAllowCredentials(true);
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", config);
+        return source;
     }
 
 }

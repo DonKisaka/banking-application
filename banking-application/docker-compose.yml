@@ -38,6 +38,7 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-db:5432/hdfc_banking
       SPRING_DATASOURCE_USERNAME: bankingsystem
       SPRING_DATASOURCE_PASSWORD: bankingsystempassword
+      SPRING_DATA_REDIS_HOST: redis
       SPRING_PROFILES_ACTIVE: docker
     depends_on:
       postgres-db:

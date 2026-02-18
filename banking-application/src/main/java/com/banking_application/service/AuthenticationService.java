@@ -4,10 +4,12 @@ import com.banking_application.config.JwtService;
 import com.banking_application.dto.AuthenticationResponseDto;
 import com.banking_application.dto.CreateUserDto;
 import com.banking_application.dto.LoginUserDto;
+import com.banking_application.model.AuditStatus;
 import com.banking_application.model.User;
 import com.banking_application.model.UserRole;
 import com.banking_application.repository.UserRepository;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -21,17 +23,20 @@ public class AuthenticationService {
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
+    private final AuditLogService auditLogService;
 
     public AuthenticationService(
             UserRepository userRepository,
             PasswordEncoder passwordEncoder,
             AuthenticationManager authenticationManager,
-            JwtService jwtService
+            JwtService jwtService,
+            AuditLogService auditLogService
     ) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.authenticationManager = authenticationManager;
         this.jwtService = jwtService;
+        this.auditLogService = auditLogService;
     }
 
     public AuthenticationResponseDto signup(CreateUserDto dto) {
@@ -51,20 +56,42 @@ public class AuthenticationService {
 
         userRepository.save(user);
 
+        auditLogService.logAction("SIGNUP", user, "auth",
+                "New user registered: " + user.getUsername(),
+                AuditStatus.SUCCESS, null, null);
+
         return buildAuthResponse(user);
     }
 
     public AuthenticationResponseDto authenticate(LoginUserDto dto) {
-        authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(dto.username(), dto.password())
-        );
-
         User user = userRepository.findByUsername(dto.username())
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
+
+        if (!user.isAccountNonLocked()) {
+            throw new IllegalStateException("Account is locked until " + user.getAccountLockedUntil()
+                    + ". Please try again later.");
+        }
+
+        try {
+            authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(dto.username(), dto.password())
+            );
+        } catch (BadCredentialsException e) {
+            user.incrementFailedLoginAttempts();
+            userRepository.save(user);
+
+            auditLogService.logFailure("LOGIN_FAILED", user, "auth",
+                    "Failed login attempt #" + user.getFailedLoginAttempts(), null);
+
+            throw e;
+        }
 
         user.resetFailedLoginAttempts();
         user.setLastLogin(LocalDateTime.now());
         userRepository.save(user);
+
+        auditLogService.logAction("LOGIN_SUCCESS", user, "auth",
+                "User logged in successfully", AuditStatus.SUCCESS, null, null);
 
         return buildAuthResponse(user);
     }

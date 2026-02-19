@@ -126,6 +126,12 @@ public class AccountService {
     }
 
     private String generateUniqueAccountNumber() {
-        return String.valueOf((long) (Math.random() * 1000000000000L));
+        long number = java.util.concurrent.ThreadLocalRandom.current().nextLong(100_000_000_000L, 1_000_000_000_000L);
+        String accNum = String.valueOf(number);
+
+        if (accountRepository.existsByAccountNumber(accNum)) {
+            return generateUniqueAccountNumber();
+        }
+        return accNum;
     }
 }

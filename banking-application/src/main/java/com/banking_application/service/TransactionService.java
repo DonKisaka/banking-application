@@ -8,6 +8,9 @@ import com.banking_application.mapper.TransactionMapper;
 import com.banking_application.model.*;
 import com.banking_application.repository.AccountRepository;
 import com.banking_application.repository.TransactionRepository;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -39,6 +42,10 @@ public class TransactionService {
         this.auditLogService = auditLogService;
     }
 
+    @Caching(evict = {
+            @CacheEvict(value = "accountDetails", key = "#dto.accountNumber()"),
+            @CacheEvict(value = "transactionHistory", key = "#dto.accountNumber()")
+    })
     @Transactional
     public TransactionResponse deposit(DepositRequestDto dto, User initiatedBy) {
         Account account = accountRepository.findByAccountNumberWithLock(dto.accountNumber())
@@ -72,6 +79,10 @@ public class TransactionService {
         return transactionMapper.toDto(saved);
     }
 
+    @Caching(evict = {
+            @CacheEvict(value = "accountDetails", key = "#dto.accountNumber()"),
+            @CacheEvict(value = "transactionHistory", key = "#dto.accountNumber()")
+    })
     @Transactional
     public TransactionResponse withdraw(WithdrawalRequestDto dto, User initiatedBy) {
         Account account = accountRepository.findByAccountNumberWithLock(dto.accountNumber())
@@ -105,6 +116,12 @@ public class TransactionService {
         return transactionMapper.toDto(saved);
     }
 
+    @Caching(evict = {
+            @CacheEvict(value = "accountDetails", key = "#dto.sourceAccountNumber()"),
+            @CacheEvict(value = "accountDetails", key = "#dto.targetAccountNumber()"),
+            @CacheEvict(value = "transactionHistory", key = "#dto.sourceAccountNumber()"),
+            @CacheEvict(value = "transactionHistory", key = "#dto.targetAccountNumber()")
+    })
     @Transactional
     public TransactionResponse transfer(TransferRequestDto dto, User initiatedBy) {
         if (dto.sourceAccountNumber().equals(dto.targetAccountNumber())) {
@@ -166,6 +183,7 @@ public class TransactionService {
         return transactionMapper.toDto(saved);
     }
 
+    @Cacheable(value = "transactionHistory", key = "#accountNumber")
     @Transactional(readOnly = true)
     public List<TransactionResponse> getTransactionHistory(String accountNumber) {
         Account account = accountRepository.findByAccountNumber(accountNumber)
@@ -177,6 +195,7 @@ public class TransactionService {
         return transactionMapper.toDto(transactions);
     }
 
+    @Cacheable(value = "transactionByRef", key = "#reference")
     @Transactional(readOnly = true)
     public TransactionResponse getTransactionByReference(String reference) {
         Transaction transaction = transactionRepository.findByTransactionReference(reference)

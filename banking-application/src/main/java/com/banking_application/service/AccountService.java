@@ -11,6 +11,8 @@ import com.banking_application.model.AccountStatus;
 import com.banking_application.model.AccountType;
 import com.banking_application.model.User;
 import com.banking_application.repository.AccountRepository;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -52,6 +54,7 @@ public class AccountService {
         return accountMapper.toDto(saved);
     }
 
+    @Cacheable(value = "accountDetails", key = "#accountNumber")
     @Transactional(readOnly = true)
     public AccountResponseDto getAccountDetails(String accountNumber) {
         return accountRepository.findByAccountNumber(accountNumber)
@@ -67,6 +70,7 @@ public class AccountService {
                 .toList();
     }
 
+    @CacheEvict(value = "accountDetails", key = "#accountNumber")
     @Transactional
     public AccountResponseDto freezeAccount(String accountNumber) {
         Account account = accountRepository.findByAccountNumber(accountNumber)
@@ -84,6 +88,7 @@ public class AccountService {
         return accountMapper.toDto(saved);
     }
 
+    @CacheEvict(value = "accountDetails", key = "#accountNumber")
     @Transactional
     public AccountResponseDto closeAccount(String accountNumber) {
         Account account = accountRepository.findByAccountNumber(accountNumber)
@@ -102,6 +107,7 @@ public class AccountService {
         return accountMapper.toDto(saved);
     }
 
+    @CacheEvict(value = "accountDetails", key = "#accountNumber")
     @Transactional
     public AccountResponseDto reactivateAccount(String accountNumber) {
         Account account = accountRepository.findByAccountNumber(accountNumber)

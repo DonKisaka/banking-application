@@ -2,6 +2,9 @@ package com.banking_application.service;
 
 import com.banking_application.dto.AccountResponseDto;
 import com.banking_application.dto.CreateAccountRequestDto;
+import com.banking_application.exception.AccountStateException;
+import com.banking_application.exception.DuplicateResourceException;
+import com.banking_application.exception.ResourceNotFoundException;
 import com.banking_application.mapper.AccountMapper;
 import com.banking_application.model.Account;
 import com.banking_application.model.AccountStatus;
@@ -34,7 +37,7 @@ public class AccountService {
                     .anyMatch(a -> a.getStatus() == AccountStatus.ACTIVE);
 
             if (hasSavings) {
-                throw new IllegalArgumentException("You already have a savings account!");
+                throw new DuplicateResourceException("Account", "type", "SAVINGS");
             }
         }
 
@@ -53,7 +56,7 @@ public class AccountService {
     public AccountResponseDto getAccountDetails(String accountNumber) {
         return accountRepository.findByAccountNumber(accountNumber)
                 .map(accountMapper::toDto)
-                .orElseThrow(() -> new IllegalArgumentException("Account not found!"));
+                .orElseThrow(() -> new ResourceNotFoundException("Account", "accountNumber", accountNumber));
     }
 
     @Transactional(readOnly = true)
@@ -67,13 +70,13 @@ public class AccountService {
     @Transactional
     public AccountResponseDto freezeAccount(String accountNumber) {
         Account account = accountRepository.findByAccountNumber(accountNumber)
-                .orElseThrow(() -> new IllegalArgumentException("Account not found!"));
+                .orElseThrow(() -> new ResourceNotFoundException("Account", "accountNumber", accountNumber));
 
         if (account.getStatus() == AccountStatus.CLOSED) {
-            throw new IllegalStateException("Cannot freeze a closed account");
+            throw new AccountStateException(accountNumber, "Cannot freeze a closed account");
         }
         if (account.getStatus() == AccountStatus.FROZEN) {
-            throw new IllegalStateException("Account is already frozen");
+            throw new AccountStateException(accountNumber, "Account is already frozen");
         }
 
         account.setStatus(AccountStatus.FROZEN);
@@ -84,13 +87,14 @@ public class AccountService {
     @Transactional
     public AccountResponseDto closeAccount(String accountNumber) {
         Account account = accountRepository.findByAccountNumber(accountNumber)
-                .orElseThrow(() -> new IllegalArgumentException("Account not found!"));
+                .orElseThrow(() -> new ResourceNotFoundException("Account", "accountNumber", accountNumber));
 
         if (account.getStatus() == AccountStatus.CLOSED) {
-            throw new IllegalStateException("Account is already closed");
+            throw new AccountStateException(accountNumber, "Account is already closed");
         }
         if (account.getBalance().compareTo(BigDecimal.ZERO) != 0) {
-            throw new IllegalStateException("Cannot close account with non-zero balance. Current balance: " + account.getBalance());
+            throw new AccountStateException(accountNumber,
+                    "Cannot close account with non-zero balance. Current balance: " + account.getBalance());
         }
 
         account.setStatus(AccountStatus.CLOSED);
@@ -101,13 +105,13 @@ public class AccountService {
     @Transactional
     public AccountResponseDto reactivateAccount(String accountNumber) {
         Account account = accountRepository.findByAccountNumber(accountNumber)
-                .orElseThrow(() -> new IllegalArgumentException("Account not found!"));
+                .orElseThrow(() -> new ResourceNotFoundException("Account", "accountNumber", accountNumber));
 
         if (account.getStatus() == AccountStatus.ACTIVE) {
-            throw new IllegalStateException("Account is already active");
+            throw new AccountStateException(accountNumber, "Account is already active");
         }
         if (account.getStatus() == AccountStatus.CLOSED) {
-            throw new IllegalStateException("Cannot reactivate a closed account");
+            throw new AccountStateException(accountNumber, "Cannot reactivate a closed account");
         }
 
         account.setStatus(AccountStatus.ACTIVE);
@@ -118,7 +122,7 @@ public class AccountService {
     @Transactional
     public Account getAccountWithLock(String accountNumber) {
         return accountRepository.findByAccountNumberWithLock(accountNumber)
-                .orElseThrow(() -> new IllegalArgumentException("Account not found!"));
+                .orElseThrow(() -> new ResourceNotFoundException("Account", "accountNumber", accountNumber));
     }
 
     private String generateUniqueAccountNumber() {

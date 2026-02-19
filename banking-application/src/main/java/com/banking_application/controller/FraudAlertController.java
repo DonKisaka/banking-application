@@ -2,6 +2,7 @@ package com.banking_application.controller;
 
 import com.banking_application.dto.FraudAlertResponseDto;
 import com.banking_application.dto.ResolveAlertRequestDto;
+import com.banking_application.exception.ResourceNotFoundException;
 import com.banking_application.model.User;
 import com.banking_application.repository.UserRepository;
 import com.banking_application.service.FraudDetectionService;
@@ -61,6 +62,6 @@ public class FraudAlertController {
 
     private User findUserOrThrow(UUID userUuid) {
         return userRepository.findByUserUuid(userUuid)
-                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("User", "userUuid", userUuid));
     }
 }

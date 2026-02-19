@@ -1,6 +1,7 @@
 package com.banking_application.service;
 
 import com.banking_application.dto.FraudAlertResponseDto;
+import com.banking_application.exception.ResourceNotFoundException;
 import com.banking_application.mapper.FraudAlertMapper;
 import com.banking_application.model.*;
 import com.banking_application.repository.FraudAlertRepository;
@@ -293,8 +294,8 @@ class FraudDetectionServiceTest {
 
         // when & then
         assertThatThrownBy(() -> underTest.resolveAlert(999L, "remarks", "action", FraudStatus.DISMISSED))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Fraud alert not found");
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("FraudAlert not found");
     }
 
     // --- getUserFraudHistory tests ---

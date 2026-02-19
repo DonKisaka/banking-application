@@ -1,6 +1,10 @@
 package com.banking_application.service;
 
 import com.banking_application.dto.*;
+import com.banking_application.exception.AccountStateException;
+import com.banking_application.exception.InsufficientFundsException;
+import com.banking_application.exception.InvalidTransactionException;
+import com.banking_application.exception.ResourceNotFoundException;
 import com.banking_application.mapper.TransactionMapper;
 import com.banking_application.model.*;
 import com.banking_application.repository.AccountRepository;
@@ -141,7 +145,7 @@ class TransactionServiceTest {
 
         // when & then
         assertThatThrownBy(() -> underTest.deposit(dto, testUser))
-                .isInstanceOf(IllegalArgumentException.class)
+                .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("Account not found");
     }
 
@@ -154,7 +158,7 @@ class TransactionServiceTest {
 
         // when & then
         assertThatThrownBy(() -> underTest.deposit(dto, testUser))
-                .isInstanceOf(IllegalStateException.class)
+                .isInstanceOf(AccountStateException.class)
                 .hasMessageContaining("not active");
     }
 
@@ -208,8 +212,8 @@ class TransactionServiceTest {
 
         // when & then
         assertThatThrownBy(() -> underTest.withdraw(dto, testUser))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("Insufficient balance");
+                .isInstanceOf(InsufficientFundsException.class)
+                .hasMessageContaining("Insufficient funds");
     }
 
     @Test
@@ -221,7 +225,7 @@ class TransactionServiceTest {
 
         // when & then
         assertThatThrownBy(() -> underTest.withdraw(dto, testUser))
-                .isInstanceOf(IllegalStateException.class)
+                .isInstanceOf(AccountStateException.class)
                 .hasMessageContaining("not active");
     }
 
@@ -233,7 +237,7 @@ class TransactionServiceTest {
 
         // when & then
         assertThatThrownBy(() -> underTest.withdraw(dto, testUser))
-                .isInstanceOf(IllegalArgumentException.class)
+                .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("Account not found");
     }
 
@@ -290,8 +294,8 @@ class TransactionServiceTest {
 
         // when & then
         assertThatThrownBy(() -> underTest.transfer(dto, testUser))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Source account not found");
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("Account not found");
     }
 
     @Test
@@ -302,8 +306,8 @@ class TransactionServiceTest {
 
         // when & then
         assertThatThrownBy(() -> underTest.transfer(dto, testUser))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Target account not found");
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("Account not found");
     }
 
     @Test
@@ -316,7 +320,7 @@ class TransactionServiceTest {
 
         // when & then
         assertThatThrownBy(() -> underTest.transfer(dto, testUser))
-                .isInstanceOf(IllegalStateException.class)
+                .isInstanceOf(AccountStateException.class)
                 .hasMessageContaining("Source account is not active");
     }
 
@@ -330,7 +334,7 @@ class TransactionServiceTest {
 
         // when & then
         assertThatThrownBy(() -> underTest.transfer(dto, testUser))
-                .isInstanceOf(IllegalStateException.class)
+                .isInstanceOf(AccountStateException.class)
                 .hasMessageContaining("Target account is not active");
     }
 
@@ -344,7 +348,7 @@ class TransactionServiceTest {
 
         // when & then
         assertThatThrownBy(() -> underTest.transfer(dto, testUser))
-                .isInstanceOf(IllegalStateException.class)
+                .isInstanceOf(InvalidTransactionException.class)
                 .hasMessageContaining("Currency mismatch");
     }
 
@@ -357,8 +361,8 @@ class TransactionServiceTest {
 
         // when & then
         assertThatThrownBy(() -> underTest.transfer(dto, testUser))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("Insufficient balance");
+                .isInstanceOf(InsufficientFundsException.class)
+                .hasMessageContaining("Insufficient funds");
     }
 
     @Test
@@ -368,7 +372,7 @@ class TransactionServiceTest {
 
         // when & then
         assertThatThrownBy(() -> underTest.transfer(dto, testUser))
-                .isInstanceOf(IllegalArgumentException.class)
+                .isInstanceOf(InvalidTransactionException.class)
                 .hasMessageContaining("same account");
     }
 
@@ -457,7 +461,7 @@ class TransactionServiceTest {
 
         // when & then
         assertThatThrownBy(() -> underTest.getTransactionHistory("NONEXISTENT"))
-                .isInstanceOf(IllegalArgumentException.class)
+                .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("Account not found");
     }
 
@@ -498,7 +502,7 @@ class TransactionServiceTest {
 
         // when & then
         assertThatThrownBy(() -> underTest.getTransactionByReference("NONEXISTENT"))
-                .isInstanceOf(IllegalArgumentException.class)
+                .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("Transaction not found");
     }
 }

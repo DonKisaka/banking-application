@@ -1,6 +1,7 @@
 package com.banking_application.service;
 
 import com.banking_application.dto.FraudAlertResponseDto;
+import com.banking_application.exception.ResourceNotFoundException;
 import com.banking_application.mapper.FraudAlertMapper;
 import com.banking_application.model.*;
 import com.banking_application.repository.FraudAlertRepository;
@@ -113,7 +114,7 @@ public class FraudDetectionService {
     public FraudAlertResponseDto resolveAlert(Long alertId, String adminRemarks,
                                                String actionTaken, FraudStatus newStatus) {
         FraudAlert alert = fraudAlertRepository.findById(alertId)
-                .orElseThrow(() -> new IllegalArgumentException("Fraud alert not found with id: " + alertId));
+                .orElseThrow(() -> new ResourceNotFoundException("FraudAlert", "id", alertId));
 
         alert.setStatus(newStatus);
         alert.setAdminRemarks(adminRemarks);

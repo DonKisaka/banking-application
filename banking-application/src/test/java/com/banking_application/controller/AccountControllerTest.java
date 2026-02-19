@@ -5,6 +5,7 @@ import com.banking_application.config.JwtService;
 import com.banking_application.config.SecurityConfig;
 import com.banking_application.dto.AccountResponseDto;
 import com.banking_application.dto.CreateAccountRequestDto;
+import com.banking_application.exception.ResourceNotFoundException;
 import com.banking_application.model.*;
 import com.banking_application.service.AccountService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -107,14 +108,14 @@ class AccountControllerTest {
     }
 
     @Test
-    void getAccountDetails_shouldReturn400WhenNotFound() throws Exception {
+    void getAccountDetails_shouldReturn404WhenNotFound() throws Exception {
         when(accountService.getAccountDetails("NONEXISTENT"))
-                .thenThrow(new IllegalArgumentException("Account not found!"));
+                .thenThrow(new ResourceNotFoundException("Account", "accountNumber", "NONEXISTENT"));
 
         mockMvc.perform(get("/api/v1/accounts/NONEXISTENT")
                         .with(user(customerUser)))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.detail").value("Account not found!"));
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.detail").value("Account not found with accountNumber: NONEXISTENT"));
     }
 
     @Test

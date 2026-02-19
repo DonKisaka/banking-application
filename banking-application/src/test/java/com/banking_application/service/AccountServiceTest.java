@@ -2,6 +2,9 @@ package com.banking_application.service;
 
 import com.banking_application.dto.AccountResponseDto;
 import com.banking_application.dto.CreateAccountRequestDto;
+import com.banking_application.exception.AccountStateException;
+import com.banking_application.exception.DuplicateResourceException;
+import com.banking_application.exception.ResourceNotFoundException;
 import com.banking_application.mapper.AccountMapper;
 import com.banking_application.model.*;
 import com.banking_application.repository.AccountRepository;
@@ -145,7 +148,7 @@ class AccountServiceTest {
 
         // when & then
         assertThatThrownBy(() -> underTest.freezeAccount("NONEXISTENT"))
-                .isInstanceOf(IllegalArgumentException.class)
+                .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("Account not found");
     }
 
@@ -157,7 +160,7 @@ class AccountServiceTest {
 
         // when & then
         assertThatThrownBy(() -> underTest.freezeAccount("ACC123456789"))
-                .isInstanceOf(IllegalStateException.class)
+                .isInstanceOf(AccountStateException.class)
                 .hasMessageContaining("Cannot freeze");
     }
 
@@ -186,7 +189,7 @@ class AccountServiceTest {
 
         // when & then
         assertThatThrownBy(() -> underTest.closeAccount("ACC123456789"))
-                .isInstanceOf(IllegalStateException.class)
+                .isInstanceOf(AccountStateException.class)
                 .hasMessageContaining("balance");
     }
 
@@ -197,7 +200,7 @@ class AccountServiceTest {
 
         // when & then
         assertThatThrownBy(() -> underTest.closeAccount("NONEXISTENT"))
-                .isInstanceOf(IllegalArgumentException.class)
+                .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("Account not found");
     }
 
@@ -210,7 +213,7 @@ class AccountServiceTest {
 
         // when & then
         assertThatThrownBy(() -> underTest.closeAccount("ACC123456789"))
-                .isInstanceOf(IllegalStateException.class)
+                .isInstanceOf(AccountStateException.class)
                 .hasMessageContaining("already closed");
     }
 
@@ -255,7 +258,7 @@ class AccountServiceTest {
 
         // when & then
         assertThatThrownBy(() -> underTest.reactivateAccount("ACC123456789"))
-                .isInstanceOf(IllegalStateException.class)
+                .isInstanceOf(AccountStateException.class)
                 .hasMessageContaining("Cannot reactivate");
     }
 
@@ -266,7 +269,7 @@ class AccountServiceTest {
 
         // when & then
         assertThatThrownBy(() -> underTest.reactivateAccount("ACC123456789"))
-                .isInstanceOf(IllegalStateException.class)
+                .isInstanceOf(AccountStateException.class)
                 .hasMessageContaining("already active");
     }
 
@@ -292,7 +295,7 @@ class AccountServiceTest {
 
         // when & then
         assertThatThrownBy(() -> underTest.getAccountWithLock("NONEXISTENT"))
-                .isInstanceOf(IllegalArgumentException.class)
+                .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("Account not found");
     }
 
@@ -333,7 +336,7 @@ class AccountServiceTest {
 
         // when & then
         assertThatThrownBy(() -> underTest.createAccount(dto, testUser))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("savings account");
+                .isInstanceOf(DuplicateResourceException.class)
+                .hasMessageContaining("Account already exists");
     }
 }

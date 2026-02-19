@@ -1,6 +1,7 @@
 package com.banking_application.controller;
 
 import com.banking_application.dto.AuditLogResponseDto;
+import com.banking_application.exception.ResourceNotFoundException;
 import com.banking_application.model.User;
 import com.banking_application.repository.UserRepository;
 import com.banking_application.service.AuditLogService;
@@ -45,6 +46,6 @@ public class AuditLogController {
 
     private User findUserOrThrow(UUID userUuid) {
         return userRepository.findByUserUuid(userUuid)
-                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("User", "userUuid", userUuid));
     }
 }

@@ -1,5 +1,6 @@
 package com.banking_application.converter;
 
+import com.banking_application.exception.EncryptionException;
 import jakarta.persistence.AttributeConverter;
 import jakarta.persistence.Convert;
 import jakarta.persistence.Converter;
@@ -24,7 +25,7 @@ public class EncryptionConverter implements AttributeConverter<String, String> {
             cipher.init(Cipher.ENCRYPT_MODE, key);
             return Base64.getEncoder().encodeToString(cipher.doFinal(attribute.getBytes()));
         } catch (Exception e) {
-            throw new RuntimeException("Error encrypting field", e);
+            throw new EncryptionException("Error encrypting field", e);
         }
 
     }
@@ -38,7 +39,7 @@ public class EncryptionConverter implements AttributeConverter<String, String> {
             cipher.init(Cipher.DECRYPT_MODE, key);
             return new String(cipher.doFinal(Base64.getDecoder().decode(dbData)));
         } catch (Exception e) {
-            throw new RuntimeException("Error decrypting field", e);
+            throw new EncryptionException("Error decrypting field", e);
         }
     }
 }

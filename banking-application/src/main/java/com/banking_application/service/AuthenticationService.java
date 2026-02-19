@@ -4,6 +4,9 @@ import com.banking_application.config.JwtService;
 import com.banking_application.dto.AuthenticationResponseDto;
 import com.banking_application.dto.CreateUserDto;
 import com.banking_application.dto.LoginUserDto;
+import com.banking_application.exception.AccountLockedException;
+import com.banking_application.exception.DuplicateResourceException;
+import com.banking_application.exception.ResourceNotFoundException;
 import com.banking_application.model.AuditStatus;
 import com.banking_application.model.User;
 import com.banking_application.model.UserRole;
@@ -41,7 +44,7 @@ public class AuthenticationService {
 
     public AuthenticationResponseDto signup(CreateUserDto dto) {
         if (userRepository.existsByUsernameOrEmail(dto.username(), dto.email())) {
-            throw new IllegalArgumentException("Username or email already exists");
+            throw new DuplicateResourceException("User", "username/email", dto.username());
         }
 
         User user = User.builder()
@@ -65,11 +68,13 @@ public class AuthenticationService {
 
     public AuthenticationResponseDto authenticate(LoginUserDto dto) {
         User user = userRepository.findByUsername(dto.username())
-                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("User", "username", dto.username()));
 
         if (!user.isAccountNonLocked()) {
-            throw new IllegalStateException("Account is locked until " + user.getAccountLockedUntil()
-                    + ". Please try again later.");
+            throw new AccountLockedException(
+                    dto.username(),
+                    user.getAccountLockedUntil() != null ? user.getAccountLockedUntil().toString() : "unknown"
+            );
         }
 
         try {

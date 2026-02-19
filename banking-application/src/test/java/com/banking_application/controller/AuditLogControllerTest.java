@@ -131,13 +131,13 @@ class AuditLogControllerTest {
     }
 
     @Test
-    void getUserAuditLogs_shouldReturn400WhenUserNotFound() throws Exception {
+    void getUserAuditLogs_shouldReturn404WhenUserNotFound() throws Exception {
         UUID unknownUuid = UUID.randomUUID();
         when(userRepository.findByUserUuid(unknownUuid)).thenReturn(Optional.empty());
 
         mockMvc.perform(get("/api/admin/audit-logs/user/" + unknownUuid)
                         .with(user(adminUser)))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.detail").value("User not found"));
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.detail").exists());
     }
 }

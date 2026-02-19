@@ -4,6 +4,9 @@ import com.banking_application.config.JwtService;
 import com.banking_application.dto.AuthenticationResponseDto;
 import com.banking_application.dto.CreateUserDto;
 import com.banking_application.dto.LoginUserDto;
+import com.banking_application.exception.AccountLockedException;
+import com.banking_application.exception.DuplicateResourceException;
+import com.banking_application.exception.ResourceNotFoundException;
 import com.banking_application.model.AuditStatus;
 import com.banking_application.model.User;
 import com.banking_application.model.UserRole;
@@ -96,7 +99,7 @@ class AuthenticationServiceTest {
 
         // when & then
         assertThatThrownBy(() -> underTest.signup(dto))
-                .isInstanceOf(IllegalArgumentException.class)
+                .isInstanceOf(DuplicateResourceException.class)
                 .hasMessageContaining("already exists");
     }
 
@@ -129,7 +132,7 @@ class AuthenticationServiceTest {
 
         // when & then
         assertThatThrownBy(() -> underTest.authenticate(dto))
-                .isInstanceOf(IllegalStateException.class)
+                .isInstanceOf(AccountLockedException.class)
                 .hasMessageContaining("locked");
     }
 
@@ -177,7 +180,7 @@ class AuthenticationServiceTest {
 
         // when & then
         assertThatThrownBy(() -> underTest.authenticate(dto))
-                .isInstanceOf(IllegalArgumentException.class)
+                .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("User not found");
     }
 }

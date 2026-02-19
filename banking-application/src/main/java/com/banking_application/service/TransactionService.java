@@ -1,6 +1,9 @@
 package com.banking_application.service;
 
 import com.banking_application.dto.*;
+import com.banking_application.exception.AccountStateException;
+import com.banking_application.exception.InvalidTransactionException;
+import com.banking_application.exception.ResourceNotFoundException;
 import com.banking_application.mapper.TransactionMapper;
 import com.banking_application.model.*;
 import com.banking_application.repository.AccountRepository;
@@ -39,10 +42,10 @@ public class TransactionService {
     @Transactional
     public TransactionResponse deposit(DepositRequestDto dto, User initiatedBy) {
         Account account = accountRepository.findByAccountNumberWithLock(dto.accountNumber())
-                .orElseThrow(() -> new IllegalArgumentException("Account not found: " + dto.accountNumber()));
+                .orElseThrow(() -> new ResourceNotFoundException("Account", "accountNumber", dto.accountNumber()));
 
         if (!account.isActive()) {
-            throw new IllegalStateException("Account is not active");
+            throw new AccountStateException(dto.accountNumber(), "Account is not active");
         }
 
         account.credit(dto.amount());
@@ -72,10 +75,10 @@ public class TransactionService {
     @Transactional
     public TransactionResponse withdraw(WithdrawalRequestDto dto, User initiatedBy) {
         Account account = accountRepository.findByAccountNumberWithLock(dto.accountNumber())
-                .orElseThrow(() -> new IllegalArgumentException("Account not found: " + dto.accountNumber()));
+                .orElseThrow(() -> new ResourceNotFoundException("Account", "accountNumber", dto.accountNumber()));
 
         if (!account.isActive()) {
-            throw new IllegalStateException("Account is not active");
+            throw new AccountStateException(dto.accountNumber(), "Account is not active");
         }
 
         account.debit(dto.amount());
@@ -105,7 +108,7 @@ public class TransactionService {
     @Transactional
     public TransactionResponse transfer(TransferRequestDto dto, User initiatedBy) {
         if (dto.sourceAccountNumber().equals(dto.targetAccountNumber())) {
-            throw new IllegalArgumentException("Cannot transfer to the same account");
+            throw new InvalidTransactionException("Cannot transfer to the same account");
         }
 
         String firstLock;
@@ -119,23 +122,21 @@ public class TransactionService {
         }
 
         Account firstAccount = accountRepository.findByAccountNumberWithLock(firstLock)
-                .orElseThrow(() -> new IllegalArgumentException(
-                        (firstLock.equals(dto.sourceAccountNumber()) ? "Source" : "Target") + " account not found: " + firstLock));
+                .orElseThrow(() -> new ResourceNotFoundException("Account", "accountNumber", firstLock));
         Account secondAccount = accountRepository.findByAccountNumberWithLock(secondLock)
-                .orElseThrow(() -> new IllegalArgumentException(
-                        (secondLock.equals(dto.sourceAccountNumber()) ? "Source" : "Target") + " account not found: " + secondLock));
+                .orElseThrow(() -> new ResourceNotFoundException("Account", "accountNumber", secondLock));
 
         Account sourceAccount = firstLock.equals(dto.sourceAccountNumber()) ? firstAccount : secondAccount;
         Account targetAccount = firstLock.equals(dto.targetAccountNumber()) ? firstAccount : secondAccount;
 
         if (!sourceAccount.isActive()) {
-            throw new IllegalStateException("Source account is not active");
+            throw new AccountStateException(dto.sourceAccountNumber(), "Source account is not active");
         }
         if (!targetAccount.isActive()) {
-            throw new IllegalStateException("Target account is not active");
+            throw new AccountStateException(dto.targetAccountNumber(), "Target account is not active");
         }
         if (!sourceAccount.getCurrency().equals(targetAccount.getCurrency())) {
-            throw new IllegalStateException("Currency mismatch between source and target accounts");
+            throw new InvalidTransactionException("Currency mismatch between source and target accounts");
         }
 
         sourceAccount.debit(dto.amount());
@@ -168,7 +169,7 @@ public class TransactionService {
     @Transactional(readOnly = true)
     public List<TransactionResponse> getTransactionHistory(String accountNumber) {
         Account account = accountRepository.findByAccountNumber(accountNumber)
-                .orElseThrow(() -> new IllegalArgumentException("Account not found: " + accountNumber));
+                .orElseThrow(() -> new ResourceNotFoundException("Account", "accountNumber", accountNumber));
 
         List<Transaction> transactions = transactionRepository
                 .findBySourceAccountOrTargetAccountOrderByCreatedAtDesc(account, account);
@@ -179,7 +180,7 @@ public class TransactionService {
     @Transactional(readOnly = true)
     public TransactionResponse getTransactionByReference(String reference) {
         Transaction transaction = transactionRepository.findByTransactionReference(reference)
-                .orElseThrow(() -> new IllegalArgumentException("Transaction not found: " + reference));
+                .orElseThrow(() -> new ResourceNotFoundException("Transaction", "reference", reference));
 
         return transactionMapper.toDto(transaction);
     }

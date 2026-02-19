@@ -4,6 +4,7 @@ import com.banking_application.config.JwtAuthenticationFilter;
 import com.banking_application.config.JwtService;
 import com.banking_application.config.SecurityConfig;
 import com.banking_application.dto.*;
+import com.banking_application.exception.InvalidTransactionException;
 import com.banking_application.model.*;
 import com.banking_application.service.TransactionService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -151,18 +152,18 @@ class TransactionControllerTest {
     }
 
     @Test
-    void transfer_shouldReturn400WhenSameAccount() throws Exception {
+    void transfer_shouldReturn422WhenSameAccount() throws Exception {
         TransferRequestDto request = new TransferRequestDto(
                 "ACC111111111", "ACC111111111", new BigDecimal("100.00"), "Self transfer"
         );
         when(transactionService.transfer(any(), any()))
-                .thenThrow(new IllegalArgumentException("Cannot transfer to the same account"));
+                .thenThrow(new InvalidTransactionException("Cannot transfer to the same account"));
 
         mockMvc.perform(post("/api/v1/transactions/transfer")
                         .with(user(testUser))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isBadRequest())
+                .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.detail").value("Cannot transfer to the same account"));
     }
 }

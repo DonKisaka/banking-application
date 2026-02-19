@@ -24,12 +24,8 @@ public class AuthenticationController {
 
     @PostMapping("/signup")
     public ResponseEntity<AuthenticationResponseDto> signup(@Valid @RequestBody CreateUserDto dto) {
-        try {
-            AuthenticationResponseDto response = authenticationService.signup(dto);
-            return ResponseEntity.status(HttpStatus.CREATED).body(response);
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.status(HttpStatus.CONFLICT).build();
-        }
+        AuthenticationResponseDto response = authenticationService.signup(dto);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @PostMapping("/login")

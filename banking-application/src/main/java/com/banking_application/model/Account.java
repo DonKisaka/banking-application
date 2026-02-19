@@ -1,6 +1,8 @@
 package com.banking_application.model;
 
 import com.banking_application.converter.EncryptionConverter;
+import com.banking_application.exception.InsufficientFundsException;
+import com.banking_application.exception.InvalidAmountException;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -85,8 +87,8 @@ public class Account {
 
     public void credit(BigDecimal amount){
         if (amount.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new IllegalArgumentException("Credit amount must be positive");
-        };
+            throw new InvalidAmountException("Credit amount must be positive");
+        }
 
         BigDecimal scaledAmount = amount.setScale(4, RoundingMode.HALF_EVEN);
         this.balance = this.balance.add(scaledAmount);
@@ -94,11 +96,11 @@ public class Account {
 
     public void debit(BigDecimal amount){
         if (amount.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new IllegalArgumentException("Debit amount must be positive");
-        };
+            throw new InvalidAmountException("Debit amount must be positive");
+        }
 
         if (!hasSufficientBalance(amount)) {
-            throw new IllegalStateException("Insufficient balance");
+            throw new InsufficientFundsException(accountNumber);
         }
 
         BigDecimal scaledAmount = amount.setScale(4, RoundingMode.HALF_EVEN);

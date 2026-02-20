@@ -8,7 +8,6 @@ import org.mapstruct.Mapping;
 
 @Mapper(componentModel = "spring")
 public interface AccountMapper {
-    @Mapping(target = "accountStatus", source = "status")
     AccountResponseDto toDto(Account account);
 
     @Mapping(target = "id", ignore = true)

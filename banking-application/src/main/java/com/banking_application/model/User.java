@@ -2,8 +2,6 @@ package com.banking_application.model;
 
 import jakarta.persistence.*;
 import lombok.*;
-import org.hibernate.envers.Audited;
-import org.hibernate.envers.NotAudited;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -13,7 +11,6 @@ import java.util.*;
 
 @Entity
 @Table(name = "users")
-@Audited
 @Getter
 @Setter
 @AllArgsConstructor
@@ -57,7 +54,6 @@ public class User implements UserDetails {
     private Boolean isActive = true;
 
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
-    @NotAudited
     @Builder.Default
     private List<Account> accounts = new ArrayList<>();
 

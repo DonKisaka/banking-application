@@ -3,7 +3,6 @@ package com.banking_application.model;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.envers.Audited;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -18,7 +17,6 @@ import java.util.UUID;
          @Index(name = "idx_source_account", columnList = "source_account_id"),
          @Index(name = "idx_target_account", columnList = "target_account_id")
  })
-@Audited
 @Getter
 @Setter
 @NoArgsConstructor

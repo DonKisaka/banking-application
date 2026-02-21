@@ -1,5 +1,6 @@
 package com.banking_application.service;
 
+import com.banking_application.aspect.Auditable;
 import com.banking_application.dto.*;
 import com.banking_application.exception.AccountStateException;
 import com.banking_application.exception.InvalidTransactionException;
@@ -26,22 +27,21 @@ public class TransactionService {
     private final TransactionRepository transactionRepository;
     private final TransactionMapper transactionMapper;
     private final FraudDetectionService fraudDetectionService;
-    private final AuditLogService auditLogService;
 
     public TransactionService(AccountService accountService,
                               AccountRepository accountRepository,
                               TransactionRepository transactionRepository,
                               TransactionMapper transactionMapper,
-                              FraudDetectionService fraudDetectionService,
-                              AuditLogService auditLogService) {
+                              FraudDetectionService fraudDetectionService) {
         this.accountService = accountService;
         this.accountRepository = accountRepository;
         this.transactionRepository = transactionRepository;
         this.transactionMapper = transactionMapper;
         this.fraudDetectionService = fraudDetectionService;
-        this.auditLogService = auditLogService;
     }
 
+    @Auditable(action = "DEPOSIT", resource = "'account:' + #p0.accountNumber()",
+            details = "'Deposited ' + #p0.amount() + ' to account'")
     @Caching(evict = {
             @CacheEvict(value = "accountDetails", key = "#dto.accountNumber()"),
             @CacheEvict(value = "transactionHistory", key = "#dto.accountNumber()")
@@ -72,13 +72,12 @@ public class TransactionService {
         Transaction saved = transactionRepository.save(transaction);
 
         fraudDetectionService.evaluateTransaction(saved);
-        auditLogService.logAction("DEPOSIT", initiatedBy, "account:" + dto.accountNumber(),
-                "Deposited " + dto.amount() + " " + account.getCurrency(),
-                AuditStatus.SUCCESS, null, null);
 
         return transactionMapper.toDto(saved);
     }
 
+    @Auditable(action = "WITHDRAWAL", resource = "'account:' + #p0.accountNumber()",
+            details = "'Withdrew ' + #p0.amount() + ' from account'")
     @Caching(evict = {
             @CacheEvict(value = "accountDetails", key = "#dto.accountNumber()"),
             @CacheEvict(value = "transactionHistory", key = "#dto.accountNumber()")
@@ -109,13 +108,12 @@ public class TransactionService {
         Transaction saved = transactionRepository.save(transaction);
 
         fraudDetectionService.evaluateTransaction(saved);
-        auditLogService.logAction("WITHDRAWAL", initiatedBy, "account:" + dto.accountNumber(),
-                "Withdrew " + dto.amount() + " " + account.getCurrency(),
-                AuditStatus.SUCCESS, null, null);
 
         return transactionMapper.toDto(saved);
     }
 
+    @Auditable(action = "TRANSFER", resource = "'account:' + #p0.sourceAccountNumber() + ' -> account:' + #p0.targetAccountNumber()",
+            details = "'Transferred ' + #p0.amount()")
     @Caching(evict = {
             @CacheEvict(value = "accountDetails", key = "#dto.sourceAccountNumber()"),
             @CacheEvict(value = "accountDetails", key = "#dto.targetAccountNumber()"),
@@ -175,10 +173,6 @@ public class TransactionService {
         Transaction saved = transactionRepository.save(transaction);
 
         fraudDetectionService.evaluateTransaction(saved);
-        auditLogService.logAction("TRANSFER", initiatedBy,
-                "account:" + dto.sourceAccountNumber() + " -> account:" + dto.targetAccountNumber(),
-                "Transferred " + dto.amount() + " " + sourceAccount.getCurrency(),
-                AuditStatus.SUCCESS, null, null);
 
         return transactionMapper.toDto(saved);
     }

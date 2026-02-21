@@ -47,9 +47,6 @@ class TransactionServiceTest {
     @Mock
     private FraudDetectionService fraudDetectionService;
 
-    @Mock
-    private AuditLogService auditLogService;
-
     @InjectMocks
     private TransactionService underTest;
 
@@ -134,7 +131,6 @@ class TransactionServiceTest {
         assertThat(savingsAccount.getBalance()).isEqualByComparingTo(new BigDecimal("10500.0000"));
         verify(transactionRepository).save(any(Transaction.class));
         verify(fraudDetectionService).evaluateTransaction(any());
-        verify(auditLogService).logAction(eq("DEPOSIT"), eq(testUser), anyString(), anyString(), eq(AuditStatus.SUCCESS), any(), any());
     }
 
     @Test

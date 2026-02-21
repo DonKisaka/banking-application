@@ -60,11 +60,6 @@ class TransactionServiceCacheTest {
         }
 
         @Bean
-        public AuditLogService auditLogService() {
-            return mock(AuditLogService.class);
-        }
-
-        @Bean
         public AccountService accountService() {
             return mock(AccountService.class);
         }
@@ -74,11 +69,10 @@ class TransactionServiceCacheTest {
                                                      AccountRepository accountRepository,
                                                      TransactionRepository transactionRepository,
                                                      TransactionMapper transactionMapper,
-                                                     FraudDetectionService fraudDetectionService,
-                                                     AuditLogService auditLogService) {
+                                                     FraudDetectionService fraudDetectionService) {
             return new TransactionService(accountService, accountRepository,
                     transactionRepository, transactionMapper,
-                    fraudDetectionService, auditLogService);
+                    fraudDetectionService);
         }
     }
 
@@ -98,8 +92,6 @@ class TransactionServiceCacheTest {
     private FraudDetectionService fraudDetectionService;
 
     @Autowired
-    private AuditLogService auditLogService;
-
     @Autowired
     private CacheManager cacheManager;
 
@@ -113,7 +105,7 @@ class TransactionServiceCacheTest {
                 cacheManager.getCache(name).clear()
         );
         reset(accountRepository, transactionRepository, transactionMapper,
-                fraudDetectionService, auditLogService);
+                fraudDetectionService);
 
         testUser = User.builder()
                 .id(1L)

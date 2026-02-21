@@ -1,5 +1,6 @@
 package com.banking_application.service;
 
+import com.banking_application.aspect.Auditable;
 import com.banking_application.dto.AccountResponseDto;
 import com.banking_application.dto.CreateAccountRequestDto;
 import com.banking_application.exception.AccountStateException;
@@ -30,6 +31,7 @@ public class AccountService {
         this.accountMapper = accountMapper;
     }
 
+    @Auditable(action = "CREATE_ACCOUNT", resource = "'user:' + #p1.username", details = "'Created ' + #p0.accountType() + ' account'")
     @Transactional
     public AccountResponseDto createAccount(CreateAccountRequestDto dto, User user) {
         if (dto.accountType() == AccountType.SAVINGS) {
@@ -70,6 +72,7 @@ public class AccountService {
                 .toList();
     }
 
+    @Auditable(action = "FREEZE_ACCOUNT", resource = "'account:' + #p0", details = "'Account frozen'")
     @CacheEvict(value = "accountDetails", key = "#accountNumber")
     @Transactional
     public AccountResponseDto freezeAccount(String accountNumber) {
@@ -88,6 +91,7 @@ public class AccountService {
         return accountMapper.toDto(saved);
     }
 
+    @Auditable(action = "CLOSE_ACCOUNT", resource = "'account:' + #p0", details = "'Account closed'")
     @CacheEvict(value = "accountDetails", key = "#accountNumber")
     @Transactional
     public AccountResponseDto closeAccount(String accountNumber) {
@@ -107,6 +111,7 @@ public class AccountService {
         return accountMapper.toDto(saved);
     }
 
+    @Auditable(action = "REACTIVATE_ACCOUNT", resource = "'account:' + #p0", details = "'Account reactivated'")
     @CacheEvict(value = "accountDetails", key = "#accountNumber")
     @Transactional
     public AccountResponseDto reactivateAccount(String accountNumber) {

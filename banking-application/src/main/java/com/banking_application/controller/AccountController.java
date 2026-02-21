@@ -2,8 +2,10 @@ package com.banking_application.controller;
 
 import com.banking_application.dto.AccountResponseDto;
 import com.banking_application.dto.CreateAccountRequestDto;
+import com.banking_application.dto.StatementResponseDto;
 import com.banking_application.model.User;
 import com.banking_application.service.AccountService;
+import com.banking_application.service.StatementService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -17,9 +19,11 @@ import java.util.List;
 public class AccountController {
 
     private final AccountService accountService;
+    private final StatementService statementService;
 
-    public AccountController(AccountService accountService) {
+    public AccountController(AccountService accountService, StatementService statementService) {
         this.accountService = accountService;
+        this.statementService = statementService;
     }
 
     @PostMapping
@@ -37,6 +41,13 @@ public class AccountController {
     @GetMapping("/{accountNumber}")
     public AccountResponseDto getAccountDetails(@PathVariable String accountNumber) {
         return accountService.getAccountDetails(accountNumber);
+    }
+
+    @GetMapping("/{accountNumber}/statements")
+    public List<StatementResponseDto> getStatements(@PathVariable String accountNumber,
+                                                     @RequestParam(defaultValue = "12") int limit,
+                                                     @AuthenticationPrincipal User user) {
+        return statementService.getStatementsForAccount(accountNumber, user, Math.min(limit, 24));
     }
 
     @PatchMapping("/{accountNumber}/freeze")

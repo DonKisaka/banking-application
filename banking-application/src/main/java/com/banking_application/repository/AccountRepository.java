@@ -1,6 +1,7 @@
 package com.banking_application.repository;
 
 import com.banking_application.model.Account;
+import com.banking_application.model.AccountStatus;
 import com.banking_application.model.AccountType;
 import com.banking_application.model.User;
 import jakarta.persistence.LockModeType;
@@ -17,6 +18,8 @@ public interface AccountRepository extends JpaRepository<Account, Long> {
     List<Account> findByUser(User user);
 
     Optional<Account> findByUserAndAccountType(User user, AccountType accountType);
+
+    List<Account> findByStatusAndAccountType(AccountStatus status, AccountType accountType);
 
     boolean existsByAccountNumber(String accountNumber);
 

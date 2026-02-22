@@ -7,6 +7,5 @@ public record AuthenticationResponseDto(
         UUID userUuid,
         String username,
         String email,
-        String role,
-        boolean mfaEnabled
+        String role
 ) {}

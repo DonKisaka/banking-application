@@ -109,8 +109,7 @@ public class AuthenticationService {
                 user.getUserUuid(),
                 user.getUsername(),
                 user.getEmail(),
-                user.getRole().name(),
-                user.isMfaEnabled()
+                user.getRole().name()
         );
     }
 }

@@ -45,13 +45,6 @@ public class User implements UserDetails {
     @Builder.Default
     private UserRole role = UserRole.CUSTOMER;
 
-    @Column(name = "mfa_enabled")
-    @Builder.Default
-    private boolean mfaEnabled = false;
-
-    @Column(name = "secret_key")
-    private String secretKey;
-
     @Column(name = "is_active")
     @Builder.Default
     private Boolean isActive = true;

@@ -20,7 +20,7 @@ public record TransferRequestDto(
         @Digits(integer = 15, fraction = 4, message = "Invalid amount format")
         BigDecimal amount,
 
-        @NotBlank(message = "The type of transaction is required")
+        @NotNull(message = "The type of transaction is required")
         TransactionType type,
 
         String description

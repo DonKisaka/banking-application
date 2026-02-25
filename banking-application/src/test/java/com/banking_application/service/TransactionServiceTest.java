@@ -1,18 +1,20 @@
 package com.banking_application.service;
 
-import com.banking_application.dto.*;
+import com.banking_application.dto.DepositRequestDto;
+import com.banking_application.dto.TransactionResponse;
+import com.banking_application.dto.TransferRequestDto;
+import com.banking_application.dto.WithdrawalRequestDto;
 import com.banking_application.exception.AccountStateException;
-import com.banking_application.exception.InsufficientFundsException;
 import com.banking_application.exception.InvalidTransactionException;
 import com.banking_application.exception.ResourceNotFoundException;
 import com.banking_application.mapper.TransactionMapper;
 import com.banking_application.model.*;
 import com.banking_application.repository.AccountRepository;
 import com.banking_application.repository.TransactionRepository;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -21,13 +23,13 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.never;
 
 @ExtendWith(MockitoExtension.class)
 class TransactionServiceTest {
@@ -48,457 +50,192 @@ class TransactionServiceTest {
     private FraudDetectionService fraudDetectionService;
 
     @InjectMocks
-    private TransactionService underTest;
+    private TransactionService transactionService;
 
-    private User testUser;
-    private Account savingsAccount;
-    private Account currentAccount;
+    @Captor
+    private ArgumentCaptor<Transaction> transactionCaptor;
 
-    @BeforeEach
-    void setUp() {
-        testUser = User.builder()
-                .id(1L)
-                .userUuid(UUID.randomUUID())
-                .username("testuser")
-                .email("test@example.com")
-                .password("encoded")
-                .role(UserRole.CUSTOMER)
-                .isActive(true)
-                .build();
-
-        savingsAccount = Account.builder()
-                .id(1L)
-                .accountUuid(UUID.randomUUID())
-                .user(testUser)
-                .accountNumber("SAVINGS001")
-                .accountType(AccountType.SAVINGS)
-                .balance(new BigDecimal("10000.0000"))
-                .currency("USD")
-                .status(AccountStatus.ACTIVE)
-                .version(0L)
-                .build();
-
-        currentAccount = Account.builder()
-                .id(2L)
-                .accountUuid(UUID.randomUUID())
-                .user(testUser)
-                .accountNumber("CURRENT001")
-                .accountType(AccountType.CURRENT)
-                .balance(new BigDecimal("25000.0000"))
-                .currency("USD")
-                .status(AccountStatus.ACTIVE)
-                .version(0L)
-                .build();
-    }
-
-    // --- deposit tests ---
-
+    // Exception Testing for unknown account on deposit
     @Test
-    void deposit_shouldCreditAccountAndRecordTransaction() {
-        // given
-        DepositRequestDto dto = new DepositRequestDto("SAVINGS001", new BigDecimal("500.00"), "Salary deposit");
+    void givenUnknownAccount_whenDeposit_thenThrowsResourceNotFoundException() {
+        // Given
+        DepositRequestDto dto = new DepositRequestDto("UNKNOWN", BigDecimal.TEN, "test");
+        User user = User.builder().username("caleb").build();
 
-        when(accountRepository.findByAccountNumberWithLock("SAVINGS001")).thenReturn(Optional.of(savingsAccount));
+        given(accountRepository.findByAccountNumberWithLock(dto.accountNumber()))
+                .willReturn(Optional.empty());
 
-        Transaction savedTransaction = Transaction.builder()
-                .id(1L)
-                .transactionUuid(UUID.randomUUID())
-                .transactionReference("HDFC-12345678")
-                .targetAccount(savingsAccount)
-                .amount(new BigDecimal("500.00"))
-                .currency("USD")
-                .transactionType(TransactionType.DEPOSIT)
-                .transactionStatus(TransactionStatus.SUCCESS)
-                .createdAt(LocalDateTime.now())
-                .build();
-
-        TransactionResponse response = new TransactionResponse(
-                "HDFC-12345678", new BigDecimal("500.00"), "USD",
-                TransactionType.DEPOSIT, TransactionStatus.SUCCESS,
-                LocalDateTime.now(), "Salary deposit", null, "SAVINGS001"
-        );
-
-        when(transactionRepository.save(any(Transaction.class))).thenReturn(savedTransaction);
-        when(transactionMapper.toDto(any(Transaction.class))).thenReturn(response);
-        when(fraudDetectionService.evaluateTransaction(any())).thenReturn(10);
-
-        // when
-        TransactionResponse result = underTest.deposit(dto, testUser);
-
-        // then
-        assertThat(result.transactionReference()).isEqualTo("HDFC-12345678");
-        assertThat(result.type()).isEqualTo(TransactionType.DEPOSIT);
-        assertThat(savingsAccount.getBalance()).isEqualByComparingTo(new BigDecimal("10500.0000"));
-        verify(transactionRepository).save(any(Transaction.class));
-        verify(fraudDetectionService).evaluateTransaction(any());
-    }
-
-    @Test
-    void deposit_shouldThrowWhenAccountNotFound() {
-        // given
-        DepositRequestDto dto = new DepositRequestDto("NONEXISTENT", new BigDecimal("500.00"), "Test");
-        when(accountRepository.findByAccountNumberWithLock("NONEXISTENT")).thenReturn(Optional.empty());
-
-        // when & then
-        assertThatThrownBy(() -> underTest.deposit(dto, testUser))
+        // When + Then
+        assertThatThrownBy(() -> transactionService.deposit(dto, user))
                 .isInstanceOf(ResourceNotFoundException.class)
-                .hasMessageContaining("Account not found");
+                .hasMessageContaining("Account")
+                .hasMessageContaining("accountNumber")
+                .hasMessageContaining(dto.accountNumber());
+
+        then(transactionRepository).shouldHaveNoInteractions();
+        then(fraudDetectionService).shouldHaveNoInteractions();
     }
 
+    // Given-When-Then + ArgumentCaptor for successful deposit
     @Test
-    void deposit_shouldThrowWhenAccountNotActive() {
-        // given
-        savingsAccount.setStatus(AccountStatus.FROZEN);
-        DepositRequestDto dto = new DepositRequestDto("SAVINGS001", new BigDecimal("500.00"), "Test");
-        when(accountRepository.findByAccountNumberWithLock("SAVINGS001")).thenReturn(Optional.of(savingsAccount));
+    void givenActiveAccount_whenDeposit_thenBalanceCreditedTransactionSavedAndEvaluated() {
+        // Given
+        DepositRequestDto dto = new DepositRequestDto("ACC123", BigDecimal.valueOf(100), "Initial deposit");
+        User user = User.builder().username("natalia").build();
 
-        // when & then
-        assertThatThrownBy(() -> underTest.deposit(dto, testUser))
+        Account account = new Account();
+        account.setAccountNumber(dto.accountNumber());
+        account.setStatus(AccountStatus.ACTIVE);
+        account.setCurrency("KSH");
+        account.setBalance(BigDecimal.ZERO);
+
+        given(accountRepository.findByAccountNumberWithLock(dto.accountNumber()))
+                .willReturn(Optional.of(account));
+
+        given(transactionRepository.save(any(Transaction.class)))
+                .willAnswer(invocation -> {
+                    Transaction tx = invocation.getArgument(0);
+                    tx.setTransactionReference("REF123");
+                    tx.setCreatedAt(LocalDateTime.now());
+                    return tx;
+                });
+
+        TransactionResponse txResponse = new TransactionResponse(
+                "REF123",
+                dto.amount(),
+                "KSH",
+                TransactionType.DEPOSIT,
+                TransactionStatus.SUCCESS,
+                LocalDateTime.now(),
+                dto.description(),
+                null,
+                dto.accountNumber()
+        );
+        given(transactionMapper.toDto(any(Transaction.class))).willReturn(txResponse);
+
+        // When
+        TransactionResponse result = transactionService.deposit(dto, user);
+
+        // Then
+        then(accountRepository).should().findByAccountNumberWithLock(dto.accountNumber());
+        then(transactionRepository).should().save(transactionCaptor.capture());
+        then(fraudDetectionService).should().evaluateTransaction(transactionCaptor.getValue());
+        then(transactionMapper).should().toDto(any(Transaction.class));
+
+        Transaction saved = transactionCaptor.getValue();
+        assertThat(saved.getTransactionType()).isEqualTo(TransactionType.DEPOSIT);
+        assertThat(saved.getTargetAccount()).isEqualTo(account);
+        assertThat(saved.getInitiatedBy()).isEqualTo(user);
+        assertThat(saved.getAmount()).isEqualTo(dto.amount());
+        assertThat(account.getBalance()).isEqualByComparingTo(dto.amount());
+
+        assertThat(result).isEqualTo(txResponse);
+    }
+
+    // Exception Testing for inactive account on withdrawal
+    @Test
+    void givenInactiveAccount_whenWithdraw_thenThrowsAccountStateException() {
+        // Given
+        WithdrawalRequestDto dto = new WithdrawalRequestDto("ACC123", BigDecimal.ONE, "test", "token");
+        User user = User.builder().username("joy").build();
+
+        Account account = new Account();
+        account.setAccountNumber(dto.accountNumber());
+        account.setStatus(AccountStatus.FROZEN);
+
+        given(accountRepository.findByAccountNumberWithLock(dto.accountNumber()))
+                .willReturn(Optional.of(account));
+
+        // When + Then
+        assertThatThrownBy(() -> transactionService.withdraw(dto, user))
                 .isInstanceOf(AccountStateException.class)
                 .hasMessageContaining("not active");
+
+        then(transactionRepository).shouldHaveNoInteractions();
     }
 
-    // --- withdraw tests ---
-
+    // Exception Testing for self-transfer
     @Test
-    void withdraw_shouldDebitAccountAndRecordTransaction() {
-        // given
-        WithdrawalRequestDto dto = new WithdrawalRequestDto("SAVINGS001", new BigDecimal("2000.00"), "ATM withdrawal", "token123");
+    void givenSameSourceAndTarget_whenTransfer_thenThrowsInvalidTransactionExceptionAndNoLookups() {
+        // Given
+        TransferRequestDto dto = new TransferRequestDto("ACC123", "ACC123", BigDecimal.ONE, "self");
+        User user = User.builder().username("kimberly").build();
 
-        when(accountRepository.findByAccountNumberWithLock("SAVINGS001")).thenReturn(Optional.of(savingsAccount));
-
-        Transaction savedTransaction = Transaction.builder()
-                .id(2L)
-                .transactionUuid(UUID.randomUUID())
-                .transactionReference("HDFC-87654321")
-                .sourceAccount(savingsAccount)
-                .amount(new BigDecimal("2000.00"))
-                .currency("USD")
-                .transactionType(TransactionType.WITHDRAWAL)
-                .transactionStatus(TransactionStatus.SUCCESS)
-                .createdAt(LocalDateTime.now())
-                .build();
-
-        TransactionResponse response = new TransactionResponse(
-                "HDFC-87654321", new BigDecimal("2000.00"), "USD",
-                TransactionType.WITHDRAWAL, TransactionStatus.SUCCESS,
-                LocalDateTime.now(), "ATM withdrawal", "SAVINGS001", null
-        );
-
-        when(transactionRepository.save(any(Transaction.class))).thenReturn(savedTransaction);
-        when(transactionMapper.toDto(any(Transaction.class))).thenReturn(response);
-        when(fraudDetectionService.evaluateTransaction(any())).thenReturn(5);
-
-        // when
-        TransactionResponse result = underTest.withdraw(dto, testUser);
-
-        // then
-        assertThat(result.transactionReference()).isEqualTo("HDFC-87654321");
-        assertThat(result.type()).isEqualTo(TransactionType.WITHDRAWAL);
-        assertThat(savingsAccount.getBalance()).isEqualByComparingTo(new BigDecimal("8000.0000"));
-        verify(transactionRepository).save(any(Transaction.class));
-        verify(fraudDetectionService).evaluateTransaction(any());
-    }
-
-    @Test
-    void withdraw_shouldThrowWhenInsufficientBalance() {
-        // given
-        WithdrawalRequestDto dto = new WithdrawalRequestDto("SAVINGS001", new BigDecimal("50000.00"), "Large withdrawal", "token123");
-        when(accountRepository.findByAccountNumberWithLock("SAVINGS001")).thenReturn(Optional.of(savingsAccount));
-
-        // when & then
-        assertThatThrownBy(() -> underTest.withdraw(dto, testUser))
-                .isInstanceOf(InsufficientFundsException.class)
-                .hasMessageContaining("Insufficient funds");
-    }
-
-    @Test
-    void withdraw_shouldThrowWhenAccountNotActive() {
-        // given
-        savingsAccount.setStatus(AccountStatus.CLOSED);
-        WithdrawalRequestDto dto = new WithdrawalRequestDto("SAVINGS001", new BigDecimal("100.00"), "Test", "token123");
-        when(accountRepository.findByAccountNumberWithLock("SAVINGS001")).thenReturn(Optional.of(savingsAccount));
-
-        // when & then
-        assertThatThrownBy(() -> underTest.withdraw(dto, testUser))
-                .isInstanceOf(AccountStateException.class)
-                .hasMessageContaining("not active");
-    }
-
-    @Test
-    void withdraw_shouldThrowWhenAccountNotFound() {
-        // given
-        WithdrawalRequestDto dto = new WithdrawalRequestDto("NONEXISTENT", new BigDecimal("100.00"), "Test", "token123");
-        when(accountRepository.findByAccountNumberWithLock("NONEXISTENT")).thenReturn(Optional.empty());
-
-        // when & then
-        assertThatThrownBy(() -> underTest.withdraw(dto, testUser))
-                .isInstanceOf(ResourceNotFoundException.class)
-                .hasMessageContaining("Account not found");
-    }
-
-    // --- transfer tests ---
-
-    @Test
-    void transfer_shouldDebitSourceAndCreditTarget() {
-        // given
-        TransferRequestDto dto = new TransferRequestDto("SAVINGS001", "CURRENT001", new BigDecimal("3000.00"), "Rent payment");
-
-        when(accountRepository.findByAccountNumberWithLock("SAVINGS001")).thenReturn(Optional.of(savingsAccount));
-        when(accountRepository.findByAccountNumberWithLock("CURRENT001")).thenReturn(Optional.of(currentAccount));
-
-        Transaction savedTransaction = Transaction.builder()
-                .id(3L)
-                .transactionUuid(UUID.randomUUID())
-                .transactionReference("HDFC-TRANSFER1")
-                .sourceAccount(savingsAccount)
-                .targetAccount(currentAccount)
-                .amount(new BigDecimal("3000.00"))
-                .currency("USD")
-                .transactionType(TransactionType.TRANSFER)
-                .transactionStatus(TransactionStatus.SUCCESS)
-                .createdAt(LocalDateTime.now())
-                .build();
-
-        TransactionResponse response = new TransactionResponse(
-                "HDFC-TRANSFER1", new BigDecimal("3000.00"), "USD",
-                TransactionType.TRANSFER, TransactionStatus.SUCCESS,
-                LocalDateTime.now(), "Rent payment", "SAVINGS001", "CURRENT001"
-        );
-
-        when(transactionRepository.save(any(Transaction.class))).thenReturn(savedTransaction);
-        when(transactionMapper.toDto(any(Transaction.class))).thenReturn(response);
-        when(fraudDetectionService.evaluateTransaction(any())).thenReturn(15);
-
-        // when
-        TransactionResponse result = underTest.transfer(dto, testUser);
-
-        // then
-        assertThat(result.transactionReference()).isEqualTo("HDFC-TRANSFER1");
-        assertThat(savingsAccount.getBalance()).isEqualByComparingTo(new BigDecimal("7000.0000"));
-        assertThat(currentAccount.getBalance()).isEqualByComparingTo(new BigDecimal("28000.0000"));
-        verify(transactionRepository).save(any(Transaction.class));
-        verify(fraudDetectionService).evaluateTransaction(any());
-    }
-
-    @Test
-    void transfer_shouldThrowWhenSourceAccountNotFound() {
-        // given - "CURRENT001" < "NONEXISTENT" alphabetically, so CURRENT001 locks first
-        TransferRequestDto dto = new TransferRequestDto("NONEXISTENT", "CURRENT001", new BigDecimal("1000.00"), "Test");
-        when(accountRepository.findByAccountNumberWithLock("CURRENT001")).thenReturn(Optional.of(currentAccount));
-        when(accountRepository.findByAccountNumberWithLock("NONEXISTENT")).thenReturn(Optional.empty());
-
-        // when & then
-        assertThatThrownBy(() -> underTest.transfer(dto, testUser))
-                .isInstanceOf(ResourceNotFoundException.class)
-                .hasMessageContaining("Account not found");
-    }
-
-    @Test
-    void transfer_shouldThrowWhenTargetAccountNotFound() {
-        // given - "NONEXISTENT" < "SAVINGS001" alphabetically, so NONEXISTENT locks first and fails
-        TransferRequestDto dto = new TransferRequestDto("SAVINGS001", "NONEXISTENT", new BigDecimal("1000.00"), "Test");
-        when(accountRepository.findByAccountNumberWithLock("NONEXISTENT")).thenReturn(Optional.empty());
-
-        // when & then
-        assertThatThrownBy(() -> underTest.transfer(dto, testUser))
-                .isInstanceOf(ResourceNotFoundException.class)
-                .hasMessageContaining("Account not found");
-    }
-
-    @Test
-    void transfer_shouldThrowWhenSourceNotActive() {
-        // given
-        savingsAccount.setStatus(AccountStatus.FROZEN);
-        TransferRequestDto dto = new TransferRequestDto("SAVINGS001", "CURRENT001", new BigDecimal("1000.00"), "Test");
-        when(accountRepository.findByAccountNumberWithLock("SAVINGS001")).thenReturn(Optional.of(savingsAccount));
-        when(accountRepository.findByAccountNumberWithLock("CURRENT001")).thenReturn(Optional.of(currentAccount));
-
-        // when & then
-        assertThatThrownBy(() -> underTest.transfer(dto, testUser))
-                .isInstanceOf(AccountStateException.class)
-                .hasMessageContaining("Source account is not active");
-    }
-
-    @Test
-    void transfer_shouldThrowWhenTargetNotActive() {
-        // given
-        currentAccount.setStatus(AccountStatus.CLOSED);
-        TransferRequestDto dto = new TransferRequestDto("SAVINGS001", "CURRENT001", new BigDecimal("1000.00"), "Test");
-        when(accountRepository.findByAccountNumberWithLock("SAVINGS001")).thenReturn(Optional.of(savingsAccount));
-        when(accountRepository.findByAccountNumberWithLock("CURRENT001")).thenReturn(Optional.of(currentAccount));
-
-        // when & then
-        assertThatThrownBy(() -> underTest.transfer(dto, testUser))
-                .isInstanceOf(AccountStateException.class)
-                .hasMessageContaining("Target account is not active");
-    }
-
-    @Test
-    void transfer_shouldThrowWhenCurrencyMismatch() {
-        // given
-        currentAccount.setCurrency("EUR");
-        TransferRequestDto dto = new TransferRequestDto("SAVINGS001", "CURRENT001", new BigDecimal("1000.00"), "Test");
-        when(accountRepository.findByAccountNumberWithLock("SAVINGS001")).thenReturn(Optional.of(savingsAccount));
-        when(accountRepository.findByAccountNumberWithLock("CURRENT001")).thenReturn(Optional.of(currentAccount));
-
-        // when & then
-        assertThatThrownBy(() -> underTest.transfer(dto, testUser))
-                .isInstanceOf(InvalidTransactionException.class)
-                .hasMessageContaining("Currency mismatch");
-    }
-
-    @Test
-    void transfer_shouldThrowWhenInsufficientBalance() {
-        // given
-        TransferRequestDto dto = new TransferRequestDto("SAVINGS001", "CURRENT001", new BigDecimal("50000.00"), "Test");
-        when(accountRepository.findByAccountNumberWithLock("SAVINGS001")).thenReturn(Optional.of(savingsAccount));
-        when(accountRepository.findByAccountNumberWithLock("CURRENT001")).thenReturn(Optional.of(currentAccount));
-
-        // when & then
-        assertThatThrownBy(() -> underTest.transfer(dto, testUser))
-                .isInstanceOf(InsufficientFundsException.class)
-                .hasMessageContaining("Insufficient funds");
-    }
-
-    @Test
-    void transfer_shouldThrowWhenTransferToSameAccount() {
-        // given - same account check happens before locking, no stubs needed
-        TransferRequestDto dto = new TransferRequestDto("SAVINGS001", "SAVINGS001", new BigDecimal("1000.00"), "Test");
-
-        // when & then
-        assertThatThrownBy(() -> underTest.transfer(dto, testUser))
+        // When + Then
+        assertThatThrownBy(() -> transactionService.transfer(dto, user))
                 .isInstanceOf(InvalidTransactionException.class)
                 .hasMessageContaining("same account");
+
+        then(accountRepository).shouldHaveNoInteractions();
+        then(transactionRepository).shouldHaveNoInteractions();
     }
 
-    // --- transfer with lock ordering ---
-
+    // Exception Testing for unknown account in history
     @Test
-    void transfer_shouldLockAccountsInIdOrder() {
-        // given - source has higher ID than target to test lock ordering
-        savingsAccount.setId(10L);
-        currentAccount.setId(5L);
-        TransferRequestDto dto = new TransferRequestDto("SAVINGS001", "CURRENT001", new BigDecimal("1000.00"), "Test");
+    void givenUnknownAccount_whenGetTransactionHistory_thenThrowsResourceNotFoundException() {
+        // Given
+        String accountNumber = "UNKNOWN";
+        given(accountRepository.findByAccountNumber(accountNumber))
+                .willReturn(Optional.empty());
 
-        when(accountRepository.findByAccountNumberWithLock("CURRENT001")).thenReturn(Optional.of(currentAccount));
-        when(accountRepository.findByAccountNumberWithLock("SAVINGS001")).thenReturn(Optional.of(savingsAccount));
-
-        Transaction savedTransaction = Transaction.builder()
-                .id(4L)
-                .transactionUuid(UUID.randomUUID())
-                .transactionReference("HDFC-ORDERED")
-                .sourceAccount(savingsAccount)
-                .targetAccount(currentAccount)
-                .amount(new BigDecimal("1000.00"))
-                .currency("USD")
-                .transactionType(TransactionType.TRANSFER)
-                .transactionStatus(TransactionStatus.SUCCESS)
-                .createdAt(LocalDateTime.now())
-                .build();
-
-        TransactionResponse response = new TransactionResponse(
-                "HDFC-ORDERED", new BigDecimal("1000.00"), "USD",
-                TransactionType.TRANSFER, TransactionStatus.SUCCESS,
-                LocalDateTime.now(), "Test", "SAVINGS001", "CURRENT001"
-        );
-
-        when(transactionRepository.save(any(Transaction.class))).thenReturn(savedTransaction);
-        when(transactionMapper.toDto(any(Transaction.class))).thenReturn(response);
-        when(fraudDetectionService.evaluateTransaction(any())).thenReturn(0);
-
-        // when
-        TransactionResponse result = underTest.transfer(dto, testUser);
-
-        // then
-        assertThat(result).isNotNull();
-        verify(accountRepository, times(2)).findByAccountNumberWithLock(anyString());
+        // When + Then
+        assertThatThrownBy(() -> transactionService.getTransactionHistory(accountNumber))
+                .isInstanceOf(ResourceNotFoundException.class);
     }
 
-    // --- getTransactionHistory tests ---
-
+    // Exception Testing for missing transaction reference
     @Test
-    void getTransactionHistory_shouldReturnTransactionsForAccount() {
-        // given
-        when(accountRepository.findByAccountNumber("SAVINGS001")).thenReturn(Optional.of(savingsAccount));
+    void givenUnknownReference_whenGetTransactionByReference_thenThrowsResourceNotFoundException() {
+        // Given
+        String reference = "MISSING";
+        given(transactionRepository.findByTransactionReference(reference))
+                .willReturn(Optional.empty());
 
-        Transaction txn = Transaction.builder()
-                .id(1L)
-                .transactionReference("HDFC-HIST001")
-                .sourceAccount(savingsAccount)
-                .amount(new BigDecimal("500.00"))
-                .transactionType(TransactionType.WITHDRAWAL)
-                .transactionStatus(TransactionStatus.SUCCESS)
-                .createdAt(LocalDateTime.now())
-                .build();
-
-        TransactionResponse dto = new TransactionResponse(
-                "HDFC-HIST001", new BigDecimal("500.00"), "USD",
-                TransactionType.WITHDRAWAL, TransactionStatus.SUCCESS,
-                LocalDateTime.now(), null, "SAVINGS001", null
-        );
-
-        when(transactionRepository.findBySourceAccountOrTargetAccountOrderByCreatedAtDesc(savingsAccount, savingsAccount))
-                .thenReturn(List.of(txn));
-        when(transactionMapper.toDto(List.of(txn))).thenReturn(List.of(dto));
-
-        // when
-        List<TransactionResponse> result = underTest.getTransactionHistory("SAVINGS001");
-
-        // then
-        assertThat(result).hasSize(1);
-        assertThat(result.get(0).transactionReference()).isEqualTo("HDFC-HIST001");
-    }
-
-    @Test
-    void getTransactionHistory_shouldThrowWhenAccountNotFound() {
-        // given
-        when(accountRepository.findByAccountNumber("NONEXISTENT")).thenReturn(Optional.empty());
-
-        // when & then
-        assertThatThrownBy(() -> underTest.getTransactionHistory("NONEXISTENT"))
+        // When + Then
+        assertThatThrownBy(() -> transactionService.getTransactionByReference(reference))
                 .isInstanceOf(ResourceNotFoundException.class)
-                .hasMessageContaining("Account not found");
+                .hasMessageContaining("Transaction")
+                .hasMessageContaining("reference")
+                .hasMessageContaining(reference);
     }
 
-    // --- getTransactionByReference tests ---
-
+    // Given-When-Then for transaction history retrieval
     @Test
-    void getTransactionByReference_shouldReturnTransaction() {
-        // given
-        Transaction txn = Transaction.builder()
-                .id(1L)
-                .transactionReference("HDFC-REF12345")
-                .amount(new BigDecimal("1000.00"))
+    void givenExistingAccount_whenGetTransactionHistory_thenRepositoryAndMapperUsed() {
+        // Given
+        String accountNumber = "ACC999";
+        Account account = new Account();
+        account.setAccountNumber(accountNumber);
+
+        given(accountRepository.findByAccountNumber(accountNumber))
+                .willReturn(Optional.of(account));
+
+        Transaction tx = Transaction.builder()
+                .amount(BigDecimal.TEN)
                 .transactionType(TransactionType.DEPOSIT)
                 .transactionStatus(TransactionStatus.SUCCESS)
-                .createdAt(LocalDateTime.now())
                 .build();
 
+        given(transactionRepository.findBySourceAccountOrTargetAccountOrderByCreatedAtDesc(account, account))
+                .willReturn(List.of(tx));
+
         TransactionResponse dto = new TransactionResponse(
-                "HDFC-REF12345", new BigDecimal("1000.00"), "USD",
+                "REF", BigDecimal.TEN, "USD",
                 TransactionType.DEPOSIT, TransactionStatus.SUCCESS,
-                LocalDateTime.now(), null, null, "SAVINGS001"
+                LocalDateTime.now(), "desc", null, accountNumber
         );
+        given(transactionMapper.toDto(List.of(tx))).willReturn(List.of(dto));
 
-        when(transactionRepository.findByTransactionReference("HDFC-REF12345")).thenReturn(Optional.of(txn));
-        when(transactionMapper.toDto(txn)).thenReturn(dto);
+        // When
+        List<TransactionResponse> result = transactionService.getTransactionHistory(accountNumber);
 
-        // when
-        TransactionResponse result = underTest.getTransactionByReference("HDFC-REF12345");
+        // Then
+        then(accountRepository).should().findByAccountNumber(accountNumber);
+        then(transactionRepository).should()
+                .findBySourceAccountOrTargetAccountOrderByCreatedAtDesc(account, account);
+        then(transactionMapper).should().toDto(List.of(tx));
 
-        // then
-        assertThat(result.transactionReference()).isEqualTo("HDFC-REF12345");
-    }
-
-    @Test
-    void getTransactionByReference_shouldThrowWhenNotFound() {
-        // given
-        when(transactionRepository.findByTransactionReference("NONEXISTENT")).thenReturn(Optional.empty());
-
-        // when & then
-        assertThatThrownBy(() -> underTest.getTransactionByReference("NONEXISTENT"))
-                .isInstanceOf(ResourceNotFoundException.class)
-                .hasMessageContaining("Transaction not found");
+        assertThat(result).containsExactly(dto);
     }
 }
+

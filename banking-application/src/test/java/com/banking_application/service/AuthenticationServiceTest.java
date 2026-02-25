@@ -9,11 +9,11 @@ import com.banking_application.exception.DuplicateResourceException;
 import com.banking_application.exception.ResourceNotFoundException;
 import com.banking_application.model.AuditStatus;
 import com.banking_application.model.User;
-import com.banking_application.model.UserRole;
 import com.banking_application.repository.UserRepository;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -29,7 +29,9 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.*;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.never;
 
 @ExtendWith(MockitoExtension.class)
 class AuthenticationServiceTest {
@@ -50,137 +52,180 @@ class AuthenticationServiceTest {
     private AuditLogService auditLogService;
 
     @InjectMocks
-    private AuthenticationService underTest;
+    private AuthenticationService authenticationService;
 
-    private User testUser;
+    @Captor
+    private ArgumentCaptor<User> userCaptor;
 
-    @BeforeEach
-    void setUp() {
-        testUser = User.builder()
-                .id(1L)
-                .userUuid(UUID.randomUUID())
-                .username("testuser")
-                .email("test@example.com")
-                .password("encodedPassword")
-                .phoneNumber("+1234567890")
-                .role(UserRole.CUSTOMER)
-                .isActive(true)
-                .failedLoginAttempts(0)
-                .createdAt(LocalDateTime.now())
-                .build();
-    }
-
-    // --- signup tests ---
-
+    // Given-When-Then + Exception Testing + Verification
     @Test
-    void signup_shouldCreateNewUserAndReturnToken() {
-        // given
-        CreateUserDto dto = new CreateUserDto("newuser", "new@example.com", "password123", "+9876543210");
-        when(userRepository.existsByUsernameOrEmail("newuser", "new@example.com")).thenReturn(false);
-        when(passwordEncoder.encode("password123")).thenReturn("encodedPassword");
-        when(userRepository.save(any(User.class))).thenReturn(testUser);
-        when(jwtService.generateToken(any(User.class))).thenReturn("jwt-token-123");
+    void givenExistingUser_whenSignup_thenThrowsDuplicateResourceException() {
+        // Given
+        CreateUserDto dto = new CreateUserDto(
+                "donaldkisaka",
+                "kisakadonald@example.com",
+                "delaand2004##",
+                "0707412258"
+        );
 
-        // when
-        AuthenticationResponseDto result = underTest.signup(dto);
+        given(userRepository.existsByUsernameOrEmail(dto.username(), dto.email()))
+                .willReturn(true);
 
-        // then
-        assertThat(result.token()).isEqualTo("jwt-token-123");
-        verify(userRepository).save(any(User.class));
-        verify(auditLogService).logAction(eq("SIGNUP"), any(User.class), eq("auth"),
-                anyString(), eq(AuditStatus.SUCCESS), any(), any());
-    }
-
-    @Test
-    void signup_shouldThrowWhenUsernameOrEmailExists() {
-        // given
-        CreateUserDto dto = new CreateUserDto("testuser", "test@example.com", "password123", "+1234567890");
-        when(userRepository.existsByUsernameOrEmail("testuser", "test@example.com")).thenReturn(true);
-
-        // when & then
-        assertThatThrownBy(() -> underTest.signup(dto))
+        // When + Then
+        assertThatThrownBy(() -> authenticationService.signup(dto))
                 .isInstanceOf(DuplicateResourceException.class)
-                .hasMessageContaining("already exists");
+                .hasMessageContaining("User")
+                .hasMessageContaining("username/email");
+
+        then(userRepository).should(never()).save(any(User.class));
+        then(auditLogService).shouldHaveNoInteractions();
     }
 
-    // --- authenticate tests ---
-
+    // Given-When-Then + Mocking + ArgumentCaptor + Verification
     @Test
-    void authenticate_shouldReturnTokenOnSuccess() {
-        // given
-        LoginUserDto dto = new LoginUserDto("testuser", "password123");
-        when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(testUser));
-        when(jwtService.generateToken(testUser)).thenReturn("jwt-token-456");
+    void givenValidSignup_whenSignup_thenUserSavedAuditLoggedAndTokenReturned() {
+        // Given
+        CreateUserDto dto = new CreateUserDto(
+                "tom",
+                "tomevans@example.com",
+                "chelsea123456789",
+                "0712569002"
+        );
 
-        // when
-        AuthenticationResponseDto result = underTest.authenticate(dto);
+        given(userRepository.existsByUsernameOrEmail(dto.username(), dto.email()))
+                .willReturn(false);
+        given(passwordEncoder.encode(dto.password())).willReturn("encoded-password");
+        given(jwtService.generateToken(any(User.class))).willReturn("jwt-token");
 
-        // then
-        assertThat(result.token()).isEqualTo("jwt-token-456");
-        assertThat(testUser.getFailedLoginAttempts()).isZero();
-        assertThat(testUser.getLastLogin()).isNotNull();
-        verify(auditLogService).logAction(eq("LOGIN_SUCCESS"), eq(testUser), eq("auth"),
-                anyString(), eq(AuditStatus.SUCCESS), any(), any());
+        // When
+        AuthenticationResponseDto response = authenticationService.signup(dto);
+
+        // Then
+        then(userRepository).should().save(userCaptor.capture());
+        User savedUser = userCaptor.getValue();
+
+        assertThat(savedUser.getUsername()).isEqualTo(dto.username());
+        assertThat(savedUser.getEmail()).isEqualTo(dto.email());
+        assertThat(savedUser.getPhoneNumber()).isEqualTo(dto.phoneNumber());
+        assertThat(savedUser.getPassword()).isEqualTo("encoded-password");
+        assertThat(savedUser.getIsActive()).isTrue();
+
+        then(auditLogService).should().logAction(
+                eq("SIGNUP"),
+                eq(savedUser),
+                eq("auth"),
+                anyString(),
+                eq(AuditStatus.SUCCESS),
+                isNull(),
+                isNull()
+        );
+
+        assertThat(response.token()).isEqualTo("jwt-token");
+        assertThat(response.username()).isEqualTo(dto.username());
+        assertThat(response.email()).isEqualTo(dto.email());
     }
 
+    // Exception Testing for locked account
     @Test
-    void authenticate_shouldThrowWhenAccountIsLocked() {
-        // given
-        testUser.setAccountLockedUntil(LocalDateTime.now().plusMinutes(15));
-        LoginUserDto dto = new LoginUserDto("testuser", "password123");
-        when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(testUser));
+    void givenLockedUser_whenAuthenticate_thenThrowsAccountLockedException() {
+        // Given
+        LoginUserDto dto = new LoginUserDto("lockedUser", "password123");
 
-        // when & then
-        assertThatThrownBy(() -> underTest.authenticate(dto))
+        User lockedUser = User.builder()
+                .username("lockedUser")
+                .accountLockedUntil(LocalDateTime.now().plusMinutes(10))
+                .build();
+
+        given(userRepository.findByUsername(dto.username()))
+                .willReturn(Optional.of(lockedUser));
+
+        // When + Then
+        assertThatThrownBy(() -> authenticationService.authenticate(dto))
                 .isInstanceOf(AccountLockedException.class)
-                .hasMessageContaining("locked");
+                .hasMessageContaining("lockedUser");
+
+        then(authenticationManager).shouldHaveNoInteractions();
     }
 
+    // Given-When-Then + Exception Testing + Verification for bad credentials
     @Test
-    void authenticate_shouldIncrementFailedAttemptsOnBadCredentials() {
-        // given
-        LoginUserDto dto = new LoginUserDto("testuser", "wrongpassword");
-        when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(testUser));
-        when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
-                .thenThrow(new BadCredentialsException("Bad credentials"));
+    void givenBadCredentials_whenAuthenticate_thenFailedAttemptsIncrementedAndAuditLogged() {
+        // Given
+        LoginUserDto dto = new LoginUserDto("melissa", "wrongPassword");
 
-        // when & then
-        assertThatThrownBy(() -> underTest.authenticate(dto))
+        User user = User.builder()
+                .id(1L)
+                .username("lisa")
+                .email("lisamukoya@example.com")
+                .build();
+
+        given(userRepository.findByUsername(dto.username()))
+                .willReturn(Optional.of(user));
+
+        BadCredentialsException authException = new BadCredentialsException("Bad credentials");
+        given(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
+                .willThrow(authException);
+
+        // When + Then
+        assertThatThrownBy(() -> authenticationService.authenticate(dto))
                 .isInstanceOf(BadCredentialsException.class);
 
-        assertThat(testUser.getFailedLoginAttempts()).isEqualTo(1);
-        verify(userRepository).save(testUser);
-        verify(auditLogService).logFailure(eq("LOGIN_FAILED"), eq(testUser), eq("auth"),
-                anyString(), any());
+        then(userRepository).should().save(userCaptor.capture());
+        User savedUser = userCaptor.getValue();
+        assertThat(savedUser.getFailedLoginAttempts()).isEqualTo(1);
+
+        then(auditLogService).should().logFailure(
+                eq("LOGIN_FAILED"),
+                eq(user),
+                eq("auth"),
+                anyString(),
+                isNull()
+        );
     }
 
+    // Given-When-Then for successful authentication
     @Test
-    void authenticate_shouldLockAccountAfterFiveFailedAttempts() {
-        // given
-        testUser.setFailedLoginAttempts(4);
-        LoginUserDto dto = new LoginUserDto("testuser", "wrongpassword");
-        when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(testUser));
-        when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
-                .thenThrow(new BadCredentialsException("Bad credentials"));
+    void givenValidCredentials_whenAuthenticate_thenLastLoginUpdatedAndTokenReturned() {
+        // Given
+        LoginUserDto dto = new LoginUserDto("alice", "correctPassword");
 
-        // when & then
-        assertThatThrownBy(() -> underTest.authenticate(dto))
-                .isInstanceOf(BadCredentialsException.class);
+        User user = User.builder()
+                .id(1L)
+                .username("alice")
+                .email("alice@example.com")
+                .failedLoginAttempts(2)
+                .build();
 
-        assertThat(testUser.getFailedLoginAttempts()).isEqualTo(5);
-        assertThat(testUser.getAccountLockedUntil()).isNotNull();
-        assertThat(testUser.getAccountLockedUntil()).isAfter(LocalDateTime.now());
-    }
+        given(userRepository.findByUsername(dto.username()))
+                .willReturn(Optional.of(user));
 
-    @Test
-    void authenticate_shouldThrowWhenUserNotFound() {
-        // given
-        LoginUserDto dto = new LoginUserDto("unknown", "password123");
-        when(userRepository.findByUsername("unknown")).thenReturn(Optional.empty());
+        given(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
+                .willReturn(new UsernamePasswordAuthenticationToken(dto.username(), dto.password()));
 
-        // when & then
-        assertThatThrownBy(() -> underTest.authenticate(dto))
-                .isInstanceOf(ResourceNotFoundException.class)
-                .hasMessageContaining("User not found");
+        given(jwtService.generateToken(user)).willReturn("jwt-token");
+
+        // When
+        AuthenticationResponseDto response = authenticationService.authenticate(dto);
+
+        // Then
+        then(userRepository).should().save(userCaptor.capture());
+        User savedUser = userCaptor.getValue();
+
+        assertThat(savedUser.getFailedLoginAttempts()).isZero();
+        assertThat(savedUser.getLastLogin()).isNotNull();
+
+        then(auditLogService).should().logAction(
+                eq("LOGIN_SUCCESS"),
+                eq(user),
+                eq("auth"),
+                anyString(),
+                eq(AuditStatus.SUCCESS),
+                isNull(),
+                isNull()
+        );
+
+        assertThat(response.token()).isEqualTo("jwt-token");
+        assertThat(response.username()).isEqualTo("alice");
     }
 }
+

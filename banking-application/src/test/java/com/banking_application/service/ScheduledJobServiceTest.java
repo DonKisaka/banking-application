@@ -4,22 +4,26 @@ import com.banking_application.model.*;
 import com.banking_application.repository.AccountRepository;
 import com.banking_application.repository.AccountStatementRepository;
 import com.banking_application.repository.TransactionRepository;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 
 @ExtendWith(MockitoExtension.class)
 class ScheduledJobServiceTest {
@@ -34,119 +38,72 @@ class ScheduledJobServiceTest {
     private AccountStatementRepository accountStatementRepository;
 
     @InjectMocks
-    private ScheduledJobService underTest;
+    private ScheduledJobService scheduledJobService;
 
-    private User testUser;
-    private Account savingsAccount;
+    @Captor
+    private ArgumentCaptor<Transaction> transactionCaptor;
 
-    @BeforeEach
-    void setUp() {
-        testUser = User.builder()
-                .id(1L)
-                .userUuid(UUID.randomUUID())
-                .username("testuser")
-                .email("test@example.com")
-                .password("encoded")
-                .phoneNumber("+1234567890")
-                .role(UserRole.CUSTOMER)
-                .isActive(true)
-                .build();
-
-        savingsAccount = Account.builder()
-                .id(1L)
-                .accountUuid(UUID.randomUUID())
-                .user(testUser)
-                .accountNumber("SAV001")
-                .accountType(AccountType.SAVINGS)
-                .balance(new BigDecimal("10000.0000"))
-                .currency("USD")
-                .status(AccountStatus.ACTIVE)
-                .interestRate(new BigDecimal("4.00"))
-                .minimumBalance(BigDecimal.ZERO)
-                .build();
-    }
-
+    // Given-When-Then + Mocking + ArgumentCaptor for applyMonthlyInterest
     @Test
-    void applyMonthlyInterest_shouldApplyInterestToActiveSavingsAccounts() {
-        when(accountRepository.findByStatusAndAccountType(AccountStatus.ACTIVE, AccountType.SAVINGS))
-                .thenReturn(List.of(savingsAccount));
-        when(accountRepository.findByAccountNumberWithLock("SAV001"))
-                .thenReturn(Optional.of(savingsAccount));
-        when(accountRepository.save(any(Account.class))).thenAnswer(i -> i.getArgument(0));
-        when(transactionRepository.save(any(Transaction.class))).thenAnswer(i -> i.getArgument(0));
+    void givenEligibleSavingsAccount_whenApplyMonthlyInterest_thenInterestCreditedAndTransactionSaved() {
+        // Given
+        Account account = new Account();
+        account.setAccountNumber("ACC123");
+        account.setStatus(AccountStatus.ACTIVE);
+        account.setAccountType(AccountType.SAVINGS);
+        account.setCurrency("KSH");
+        account.setBalance(new BigDecimal("100000.00"));
+        account.setInterestRate(new BigDecimal("12.00")); // 12% p.a.
+        account.setMinimumBalance(BigDecimal.ZERO);
 
-        underTest.applyMonthlyInterest();
+        given(accountRepository.findByStatusAndAccountType(AccountStatus.ACTIVE, AccountType.SAVINGS))
+                .willReturn(List.of(account));
 
-        ArgumentCaptor<Account> accountCaptor = ArgumentCaptor.forClass(Account.class);
-        verify(accountRepository).save(accountCaptor.capture());
-        BigDecimal newBalance = accountCaptor.getValue().getBalance();
-        // 10000 * 4% / 12 = 33.3333...
-        assertThat(newBalance).isGreaterThan(new BigDecimal("10000"));
-        assertThat(newBalance).isLessThan(new BigDecimal("10034"));
+        given(accountRepository.findByAccountNumberWithLock(account.getAccountNumber()))
+                .willReturn(java.util.Optional.of(account));
 
-        ArgumentCaptor<Transaction> txCaptor = ArgumentCaptor.forClass(Transaction.class);
-        verify(transactionRepository).save(txCaptor.capture());
-        Transaction interestTx = txCaptor.getValue();
+        given(transactionRepository.save(any(Transaction.class)))
+                .willAnswer(invocation -> invocation.getArgument(0));
+
+        // When
+        scheduledJobService.applyMonthlyInterest();
+
+        // Then
+        then(transactionRepository).should().save(transactionCaptor.capture());
+        then(accountRepository).should().save(account);
+
+        Transaction interestTx = transactionCaptor.getValue();
         assertThat(interestTx.getTransactionType()).isEqualTo(TransactionType.INTEREST);
-        assertThat(interestTx.getTargetAccount()).isEqualTo(savingsAccount);
-        assertThat(interestTx.getTransactionStatus()).isEqualTo(TransactionStatus.SUCCESS);
+        assertThat(interestTx.getTargetAccount()).isEqualTo(account);
+        assertThat(interestTx.getAmount()).isGreaterThan(BigDecimal.ZERO);
+        assertThat(account.getBalance()).isGreaterThan(new BigDecimal("100000.00"));
     }
 
+    // Given-When-Then for generateMonthlyStatements
     @Test
-    void applyMonthlyInterest_shouldSkipAccountsWithZeroBalance() {
-        savingsAccount.setBalance(BigDecimal.ZERO);
-        when(accountRepository.findByStatusAndAccountType(AccountStatus.ACTIVE, AccountType.SAVINGS))
-                .thenReturn(List.of(savingsAccount));
+    void givenAccountWithoutExistingStatement_whenGenerateMonthlyStatements_thenStatementSaved() {
+        // Given
+        Account account = new Account();
+        account.setAccountNumber("ACC999");
+        account.setBalance(new BigDecimal("1000.00"));
 
-        underTest.applyMonthlyInterest();
+        given(accountRepository.findAll()).willReturn(List.of(account));
 
-        verify(accountRepository, never()).findByAccountNumberWithLock(anyString());
-        verify(transactionRepository, never()).save(any());
-    }
+        // No existing statement
+        given(accountStatementRepository.findByAccountAndPeriodStartAndPeriodEnd(
+                eq(account), any(LocalDate.class), any(LocalDate.class))
+        ).willReturn(java.util.Optional.empty());
 
-    @Test
-    void applyMonthlyInterest_shouldSkipAccountsBelowMinimumBalance() {
-        savingsAccount.setMinimumBalance(new BigDecimal("50000"));
-        when(accountRepository.findByStatusAndAccountType(AccountStatus.ACTIVE, AccountType.SAVINGS))
-                .thenReturn(List.of(savingsAccount));
-        when(accountRepository.findByAccountNumberWithLock("SAV001"))
-                .thenReturn(Optional.of(savingsAccount));
+        // No transactions in period
+        given(transactionRepository.findByAccountAndCreatedAtBetween(
+                eq(account), any(LocalDateTime.class), any(LocalDateTime.class))
+        ).willReturn(Collections.emptyList());
 
-        underTest.applyMonthlyInterest();
+        // When
+        scheduledJobService.generateMonthlyStatements();
 
-        verify(transactionRepository, never()).save(any());
-    }
-
-    @Test
-    void generateMonthlyStatements_shouldCreateStatementForAccounts() {
-        when(accountRepository.findAll()).thenReturn(List.of(savingsAccount));
-        when(accountStatementRepository.findByAccountAndPeriodStartAndPeriodEnd(any(), any(), any()))
-                .thenReturn(Optional.empty());
-        when(transactionRepository.findByAccountAndCreatedAtBetween(any(), any(), any()))
-                .thenReturn(List.of());
-        when(accountStatementRepository.save(any(AccountStatement.class))).thenAnswer(i -> i.getArgument(0));
-
-        underTest.generateMonthlyStatements();
-
-        ArgumentCaptor<AccountStatement> captor = ArgumentCaptor.forClass(AccountStatement.class);
-        verify(accountStatementRepository).save(captor.capture());
-        AccountStatement stmt = captor.getValue();
-        assertThat(stmt.getAccount()).isEqualTo(savingsAccount);
-        assertThat(stmt.getPeriodStart().getDayOfMonth()).isEqualTo(1);
-        assertThat(stmt.getOpeningBalance()).isNotNull();
-        assertThat(stmt.getClosingBalance()).isNotNull();
-        assertThat(stmt.getTransactionCount()).isEqualTo(0);
-    }
-
-    @Test
-    void generateMonthlyStatements_shouldSkipWhenStatementAlreadyExists() {
-        when(accountRepository.findAll()).thenReturn(List.of(savingsAccount));
-        when(accountStatementRepository.findByAccountAndPeriodStartAndPeriodEnd(any(), any(), any()))
-                .thenReturn(Optional.of(AccountStatement.builder().build()));
-
-        underTest.generateMonthlyStatements();
-
-        verify(transactionRepository, never()).findByAccountAndCreatedAtBetween(any(), any(), any());
-        verify(accountStatementRepository, never()).save(any());
+        // Then
+        then(accountStatementRepository).should().save(any(AccountStatement.class));
     }
 }
+

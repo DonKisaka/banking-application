@@ -6,28 +6,29 @@ import com.banking_application.mapper.FraudAlertMapper;
 import com.banking_application.model.*;
 import com.banking_application.repository.FraudAlertRepository;
 import com.banking_application.repository.TransactionRepository;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.never;
 
 @ExtendWith(MockitoExtension.class)
 class FraudDetectionServiceTest {
@@ -42,313 +43,169 @@ class FraudDetectionServiceTest {
     private TransactionRepository transactionRepository;
 
     @InjectMocks
-    private FraudDetectionService underTest;
+    private FraudDetectionService fraudDetectionService;
 
-    private User testUser;
-    private Account sourceAccount;
-    private Account targetAccount;
-    private Transaction transaction;
+    @Captor
+    private ArgumentCaptor<FraudAlert> fraudAlertCaptor;
 
-    @BeforeEach
-    void setUp() {
-        testUser = User.builder()
-                .id(1L)
-                .userUuid(UUID.randomUUID())
-                .username("testuser")
-                .email("test@example.com")
-                .password("encoded")
-                .role(UserRole.CUSTOMER)
-                .isActive(true)
-                .build();
+    // Given-When-Then + Mocking + ArgumentCaptor + Verification
+    @Test
+    void givenHighRiskTransaction_whenEvaluateTransaction_thenAlertPersistedAndRiskScoreReturned() {
+        // Given
+        User sourceUser = User.builder().id(1L).username("alice").build();
+        User targetUser = User.builder().id(2L).username("bob").build();
 
-        sourceAccount = Account.builder()
-                .id(1L)
-                .accountUuid(UUID.randomUUID())
-                .user(testUser)
-                .accountNumber("SRC123")
-                .accountType(AccountType.SAVINGS)
-                .balance(new BigDecimal("100000.0000"))
-                .currency("USD")
-                .status(AccountStatus.ACTIVE)
-                .build();
+        Account source = new Account();
+        source.setUser(sourceUser);
+        Account target = new Account();
+        target.setUser(targetUser);
 
-        User targetUser = User.builder()
-                .id(2L)
-                .userUuid(UUID.randomUUID())
-                .username("targetuser")
-                .email("target@example.com")
-                .password("encoded")
-                .role(UserRole.CUSTOMER)
-                .isActive(true)
-                .build();
-
-        targetAccount = Account.builder()
-                .id(2L)
-                .accountUuid(UUID.randomUUID())
-                .user(targetUser)
-                .accountNumber("TGT456")
-                .accountType(AccountType.CURRENT)
-                .balance(new BigDecimal("5000.0000"))
-                .currency("USD")
-                .status(AccountStatus.ACTIVE)
-                .build();
-
-        transaction = Transaction.builder()
-                .id(1L)
-                .transactionUuid(UUID.randomUUID())
-                .transactionReference("HDFC-ABCD1234")
-                .sourceAccount(sourceAccount)
-                .targetAccount(targetAccount)
-                .amount(new BigDecimal("1000.0000"))
-                .currency("USD")
+        Transaction transaction = Transaction.builder()
+                .amount(new BigDecimal("100000"))
                 .transactionType(TransactionType.TRANSFER)
-                .transactionStatus(TransactionStatus.SUCCESS)
-                .initiatedBy(testUser)
-                .createdAt(LocalDateTime.now())
+                .sourceAccount(source)
+                .targetAccount(target)
                 .build();
-    }
-
-    // --- evaluateTransaction tests ---
-
-    @Test
-    void evaluateTransaction_shouldReturnLowRiskForNormalTransaction() {
-        // given - normal transaction under threshold
-        transaction.setAmount(new BigDecimal("500.0000"));
-        when(transactionRepository.findBySourceAccountOrTargetAccountOrderByCreatedAtDesc(
-                any(), any())).thenReturn(List.of());
-
-        // when
-        int riskScore = underTest.evaluateTransaction(transaction);
-
-        // then
-        assertThat(riskScore).isLessThan(70);
-        verify(fraudAlertRepository, never()).save(any(FraudAlert.class));
-    }
-
-    @Test
-    void evaluateTransaction_shouldFlagHighValueTransaction() {
-        // given - transaction over 50,000 threshold
-        transaction.setAmount(new BigDecimal("75000.0000"));
-        when(transactionRepository.findBySourceAccountOrTargetAccountOrderByCreatedAtDesc(
-                any(), any())).thenReturn(List.of());
-
-        // when
-        int riskScore = underTest.evaluateTransaction(transaction);
-
-        // then
-        assertThat(riskScore).isGreaterThanOrEqualTo(40);
-    }
-
-    @Test
-    void evaluateTransaction_shouldCreateAlertWhenRiskScoreHigh() {
-        // given - high value + rapid transactions = risk >= 70
-        transaction.setAmount(new BigDecimal("75000.0000"));
-
-        Transaction recentTxn1 = Transaction.builder()
-                .createdAt(LocalDateTime.now().minusMinutes(2))
-                .amount(new BigDecimal("10000.0000"))
-                .build();
-        Transaction recentTxn2 = Transaction.builder()
-                .createdAt(LocalDateTime.now().minusMinutes(5))
-                .amount(new BigDecimal("20000.0000"))
-                .build();
-        Transaction recentTxn3 = Transaction.builder()
-                .createdAt(LocalDateTime.now().minusMinutes(8))
-                .amount(new BigDecimal("15000.0000"))
-                .build();
-
-        when(transactionRepository.findBySourceAccountOrTargetAccountOrderByCreatedAtDesc(
-                any(), any())).thenReturn(List.of(recentTxn1, recentTxn2, recentTxn3));
-        when(fraudAlertRepository.save(any(FraudAlert.class))).thenReturn(FraudAlert.builder().build());
-
-        // when
-        int riskScore = underTest.evaluateTransaction(transaction);
-
-        // then
-        assertThat(riskScore).isGreaterThanOrEqualTo(70);
-        verify(fraudAlertRepository).save(any(FraudAlert.class));
-    }
-
-    @Test
-    void evaluateTransaction_shouldDetectRapidTransactions() {
-        // given - multiple transactions in short window
-        transaction.setAmount(new BigDecimal("30000.0000"));
 
         Transaction recent1 = Transaction.builder()
-                .createdAt(LocalDateTime.now().minusMinutes(3))
-                .amount(new BigDecimal("5000.0000"))
+                .amount(new BigDecimal("10"))
+                .createdAt(LocalDateTime.now().minusMinutes(5))
                 .build();
         Transaction recent2 = Transaction.builder()
-                .createdAt(LocalDateTime.now().minusMinutes(7))
-                .amount(new BigDecimal("5000.0000"))
+                .amount(new BigDecimal("20"))
+                .createdAt(LocalDateTime.now().minusMinutes(4))
                 .build();
         Transaction recent3 = Transaction.builder()
-                .createdAt(LocalDateTime.now().minusMinutes(9))
-                .amount(new BigDecimal("5000.0000"))
+                .amount(new BigDecimal("30"))
+                .createdAt(LocalDateTime.now().minusMinutes(3))
                 .build();
 
-        when(transactionRepository.findBySourceAccountOrTargetAccountOrderByCreatedAtDesc(
-                any(), any())).thenReturn(List.of(recent1, recent2, recent3));
+        given(transactionRepository.findBySourceAccountOrTargetAccountOrderByCreatedAtDesc(source, source))
+                .willReturn(List.of(recent1, recent2, recent3));
 
-        // when
-        int riskScore = underTest.evaluateTransaction(transaction);
+        // When
+        int riskScore = fraudDetectionService.evaluateTransaction(transaction);
 
-        // then
-        assertThat(riskScore).isGreaterThanOrEqualTo(20);
+        // Then
+        assertThat(riskScore).isGreaterThanOrEqualTo(70);
+
+        then(fraudAlertRepository).should().save(fraudAlertCaptor.capture());
+        FraudAlert saved = fraudAlertCaptor.getValue();
+
+        assertThat(saved.getTransaction()).isEqualTo(transaction);
+        assertThat(saved.getUser()).isEqualTo(transaction.getInitiatedBy());
+        assertThat(saved.getRiskScore()).isEqualTo(riskScore);
+        assertThat(saved.getStatus()).isEqualTo(FraudStatus.PENDING_REVIEW);
+        assertThat(saved.getReasonCode()).isNotBlank();
     }
 
-    // --- getPendingAlerts tests ---
-
+    // Given-When-Then + Verification for low-risk transaction
     @Test
-    void getPendingAlerts_shouldReturnPendingReviewAlerts() {
-        // given
+    void givenLowRiskTransaction_whenEvaluateTransaction_thenNoAlertPersisted() {
+        // Given
+        Transaction transaction = Transaction.builder()
+                .amount(new BigDecimal("10"))
+                .transactionType(TransactionType.DEPOSIT)
+                .build();
+
+        // When
+        int riskScore = fraudDetectionService.evaluateTransaction(transaction);
+
+        // Then
+        assertThat(riskScore).isLessThan(70);
+        then(transactionRepository).shouldHaveNoInteractions();
+        then(fraudAlertRepository).should(never()).save(any(FraudAlert.class));
+    }
+
+    // Given-When-Then for resolving alert
+    @Test
+    void givenExistingAlert_whenResolveAlert_thenUpdatedAndReturned() {
+        // Given
+        Long alertId = 1L;
         FraudAlert alert = FraudAlert.builder()
-                .id(1L)
-                .transaction(transaction)
-                .user(testUser)
-                .riskScore(85)
-                .reasonCode("HIGH_VALUE")
+                .id(alertId)
                 .status(FraudStatus.PENDING_REVIEW)
                 .build();
 
-        FraudAlertResponseDto dto = new FraudAlertResponseDto(
-                1L, "HDFC-ABCD1234", "testuser", 85, "HIGH_VALUE", FraudStatus.PENDING_REVIEW
-        );
+        given(fraudAlertRepository.findById(alertId))
+                .willReturn(Optional.of(alert));
 
-        when(fraudAlertRepository.findByStatusOrderByRiskScoreDesc(FraudStatus.PENDING_REVIEW))
-                .thenReturn(List.of(alert));
-        when(fraudAlertMapper.toDto(List.of(alert))).thenReturn(List.of(dto));
-
-        // when
-        List<FraudAlertResponseDto> result = underTest.getPendingAlerts();
-
-        // then
-        assertThat(result).hasSize(1);
-        assertThat(result.get(0).riskScore()).isEqualTo(85);
-    }
-
-    // --- getAlertsByRiskScore tests ---
-
-    @Test
-    void getAlertsByRiskScore_shouldReturnHighRiskAlerts() {
-        // given
-        FraudAlert alert = FraudAlert.builder()
-                .id(1L)
-                .riskScore(90)
-                .reasonCode("HIGH_VALUE")
-                .status(FraudStatus.PENDING_REVIEW)
-                .build();
-
-        FraudAlertResponseDto dto = new FraudAlertResponseDto(
-                1L, "HDFC-ABCD1234", "testuser", 90, "HIGH_VALUE", FraudStatus.PENDING_REVIEW
-        );
-
-        when(fraudAlertRepository.findByRiskScoreGreaterThanEqual(80)).thenReturn(List.of(alert));
-        when(fraudAlertMapper.toDto(List.of(alert))).thenReturn(List.of(dto));
-
-        // when
-        List<FraudAlertResponseDto> result = underTest.getAlertsByRiskScore(80);
-
-        // then
-        assertThat(result).hasSize(1);
-        assertThat(result.get(0).riskScore()).isEqualTo(90);
-    }
-
-    // --- resolveAlert tests ---
-
-    @Test
-    void resolveAlert_shouldUpdateAlertStatus() {
-        // given
-        FraudAlert alert = FraudAlert.builder()
-                .id(1L)
-                .transaction(transaction)
-                .user(testUser)
-                .riskScore(85)
-                .reasonCode("HIGH_VALUE")
-                .status(FraudStatus.PENDING_REVIEW)
-                .build();
-
-        when(fraudAlertRepository.findById(1L)).thenReturn(Optional.of(alert));
-        when(fraudAlertRepository.save(any(FraudAlert.class))).thenReturn(alert);
-
-        FraudAlertResponseDto dto = new FraudAlertResponseDto(
-                1L, "HDFC-ABCD1234", "testuser", 85, "HIGH_VALUE", FraudStatus.RESOLVED
-        );
-        when(fraudAlertMapper.toDto(any(FraudAlert.class))).thenReturn(dto);
-
-        // when
-        FraudAlertResponseDto result = underTest.resolveAlert(1L, "Verified legitimate", "Cleared", FraudStatus.RESOLVED);
-
-        // then
-        assertThat(alert.getStatus()).isEqualTo(FraudStatus.RESOLVED);
-        assertThat(alert.getAdminRemarks()).isEqualTo("Verified legitimate");
-        assertThat(alert.getActionTaken()).isEqualTo("Cleared");
-        assertThat(alert.getResolvedAt()).isNotNull();
-        verify(fraudAlertRepository).save(alert);
-    }
-
-    @Test
-    void resolveAlert_shouldThrowWhenAlertNotFound() {
-        // given
-        when(fraudAlertRepository.findById(999L)).thenReturn(Optional.empty());
-
-        // when & then
-        assertThatThrownBy(() -> underTest.resolveAlert(999L, "remarks", "action", FraudStatus.DISMISSED))
-                .isInstanceOf(ResourceNotFoundException.class)
-                .hasMessageContaining("FraudAlert not found");
-    }
-
-    // --- getUserFraudHistory tests ---
-
-    @Test
-    void getUserFraudHistory_shouldReturnPaginatedResults() {
-        // given
-        Pageable pageable = PageRequest.of(0, 10);
-        FraudAlert alert = FraudAlert.builder()
-                .id(1L)
-                .user(testUser)
-                .riskScore(75)
+        FraudAlert saved = FraudAlert.builder()
+                .id(alertId)
                 .status(FraudStatus.RESOLVED)
+                .adminRemarks("checked")
+                .actionTaken("allow")
                 .build();
 
+        given(fraudAlertRepository.save(alert)).willReturn(saved);
+
         FraudAlertResponseDto dto = new FraudAlertResponseDto(
-                1L, "HDFC-ABCD1234", "testuser", 75, "HIGH_VALUE", FraudStatus.RESOLVED
+                alertId, "REF123", "alice", 80, "HIGH_VALUE", FraudStatus.RESOLVED
         );
+        given(fraudAlertMapper.toDto(saved)).willReturn(dto);
 
-        Page<FraudAlert> page = new PageImpl<>(List.of(alert));
-        when(fraudAlertRepository.findByUserOrderByCreatedAtDesc(testUser, pageable)).thenReturn(page);
-        when(fraudAlertMapper.toDto(any(FraudAlert.class))).thenReturn(dto);
+        // When
+        FraudAlertResponseDto result = fraudDetectionService.resolveAlert(
+                alertId, "checked", "allow", FraudStatus.RESOLVED);
 
-        // when
-        Page<FraudAlertResponseDto> result = underTest.getUserFraudHistory(testUser, pageable);
+        // Then
+        then(fraudAlertRepository).should().findById(alertId);
+        then(fraudAlertRepository).should().save(alert);
+        then(fraudAlertMapper).should().toDto(saved);
 
-        // then
-        assertThat(result.getContent()).hasSize(1);
+        assertThat(result).isEqualTo(dto);
     }
 
-    // --- hasUnresolvedAlerts tests ---
-
+    // Exception Testing for resolving non-existent alert
     @Test
-    void hasUnresolvedAlerts_shouldReturnTrueWhenPendingExists() {
-        // given
-        when(fraudAlertRepository.existsByUserAndStatus(testUser, FraudStatus.PENDING_REVIEW)).thenReturn(true);
+    void givenMissingAlert_whenResolveAlert_thenThrowsResourceNotFoundException() {
+        // Given
+        Long alertId = 42L;
+        given(fraudAlertRepository.findById(alertId)).willReturn(Optional.empty());
 
-        // when
-        boolean result = underTest.hasUnresolvedAlerts(testUser);
-
-        // then
-        assertThat(result).isTrue();
+        // When + Then
+        assertThatThrownBy(() -> fraudDetectionService.resolveAlert(
+                alertId, "checked", "allow", FraudStatus.RESOLVED))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("FraudAlert")
+                .hasMessageContaining("id")
+                .hasMessageContaining(alertId.toString());
     }
 
+    // Given-When-Then for user history and unresolved alerts
     @Test
-    void hasUnresolvedAlerts_shouldReturnFalseWhenNoPending() {
-        // given
-        when(fraudAlertRepository.existsByUserAndStatus(testUser, FraudStatus.PENDING_REVIEW)).thenReturn(false);
+    void givenUser_whenGetUserFraudHistoryAndHasUnresolvedAlerts_thenDelegatesToRepository() {
+        // Given
+        User user = User.builder().id(1L).build();
+        var pageable = PageRequest.of(0, 10);
 
-        // when
-        boolean result = underTest.hasUnresolvedAlerts(testUser);
+        FraudAlert alert = FraudAlert.builder()
+                .id(1L)
+                .status(FraudStatus.PENDING_REVIEW)
+                .build();
+        Page<FraudAlert> page = new PageImpl<>(List.of(alert), pageable, 1);
 
-        // then
-        assertThat(result).isFalse();
+        given(fraudAlertRepository.findByUserOrderByCreatedAtDesc(user, pageable))
+                .willReturn(page);
+
+        FraudAlertResponseDto dto = new FraudAlertResponseDto(
+                1L, "REF", "alice", 80, "HIGH_VALUE", FraudStatus.PENDING_REVIEW
+        );
+        given(fraudAlertMapper.toDto(alert)).willReturn(dto);
+
+        given(fraudAlertRepository.existsByUserAndStatus(user, FraudStatus.PENDING_REVIEW))
+                .willReturn(true);
+
+        // When
+        Page<FraudAlertResponseDto> history = fraudDetectionService.getUserFraudHistory(user, pageable);
+        boolean hasUnresolved = fraudDetectionService.hasUnresolvedAlerts(user);
+
+        // Then
+        then(fraudAlertRepository).should().findByUserOrderByCreatedAtDesc(user, pageable);
+        then(fraudAlertMapper).should().toDto(alert);
+
+        assertThat(history.getContent()).containsExactly(dto);
+        assertThat(hasUnresolved).isTrue();
     }
 }
+

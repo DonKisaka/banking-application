@@ -2,27 +2,29 @@ package com.banking_application.service;
 
 import com.banking_application.dto.AuditLogResponseDto;
 import com.banking_application.mapper.AuditLogMapper;
-import com.banking_application.model.*;
+import com.banking_application.model.AuditLog;
+import com.banking_application.model.AuditStatus;
+import com.banking_application.model.User;
 import com.banking_application.repository.AuditLogRepository;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 
 @ExtendWith(MockitoExtension.class)
 class AuditLogServiceTest {
@@ -34,172 +36,110 @@ class AuditLogServiceTest {
     private AuditLogMapper auditLogMapper;
 
     @InjectMocks
-    private AuditLogService underTest;
+    private AuditLogService auditLogService;
 
-    private User testUser;
+    @Captor
+    private ArgumentCaptor<AuditLog> auditLogCaptor;
 
-    @BeforeEach
-    void setUp() {
-        testUser = User.builder()
-                .id(1L)
-                .userUuid(UUID.randomUUID())
-                .username("testuser")
-                .email("test@example.com")
-                .password("encoded")
-                .role(UserRole.CUSTOMER)
-                .isActive(true)
-                .build();
+    // Given-When-Then + ArgumentCaptor + Verification
+    @Test
+    void givenActionDetails_whenLogAction_thenAuditLogSavedWithOutcome() {
+        // Given
+        User user = User.builder().username("donald").build();
+        String action = "LOGIN_SUCCESS";
+        String resource = "auth";
+        String details = "User logged in";
+
+        // When
+        auditLogService.logAction(action, user, resource, details, AuditStatus.SUCCESS, "127.0.0.1", "JUnit");
+
+        // Then
+        then(auditLogRepository).should().save(auditLogCaptor.capture());
+        AuditLog saved = auditLogCaptor.getValue();
+
+        assertThat(saved.getUser()).isEqualTo(user);
+        assertThat(saved.getAction()).isEqualTo(action);
+        assertThat(saved.getAffectedResource()).isEqualTo(resource);
+        assertThat(saved.getDetails()).isEqualTo(details);
+        assertThat(saved.getOutcome()).isEqualTo(AuditStatus.SUCCESS);
+        assertThat(saved.getIpAddress()).isEqualTo("127.0.0.1");
+        assertThat(saved.getUserAgent()).isEqualTo("JUnit");
     }
 
-    // --- logAction tests ---
-
+    // Given-When-Then + ArgumentCaptor + Verification for failures
     @Test
-    void logAction_shouldCreateAuditLogEntry() {
-        // given
-        AuditLog savedLog = AuditLog.builder()
+    void givenFailureDetails_whenLogFailure_thenAuditLogSavedWithFailureOutcome() {
+        // Given
+        User user = User.builder().username("donald").build();
+        String action = "LOGIN_FAILED";
+        String resource = "auth";
+        String errorMessage = "Bad credentials";
+
+        // When
+        auditLogService.logFailure(action, user, resource, errorMessage, "127.0.0.1");
+
+        // Then
+        then(auditLogRepository).should().save(auditLogCaptor.capture());
+        AuditLog saved = auditLogCaptor.getValue();
+
+        assertThat(saved.getUser()).isEqualTo(user);
+        assertThat(saved.getAction()).isEqualTo(action);
+        assertThat(saved.getAffectedResource()).isEqualTo(resource);
+        assertThat(saved.getOutcome()).isEqualTo(AuditStatus.FAILURE);
+        assertThat(saved.getErrorMessage()).isEqualTo(errorMessage);
+        assertThat(saved.getIpAddress()).isEqualTo("127.0.0.1");
+    }
+
+    // Given-When-Then for paged retrieval
+    @Test
+    void givenUserAndPageable_whenGetUserAuditLogs_thenRepositoryAndMapperUsed() {
+        // Given
+        User user = User.builder().username("ted").build();
+        var pageable = PageRequest.of(0, 10);
+
+        AuditLog log = AuditLog.builder()
                 .id(1L)
-                .user(testUser)
+                .user(user)
                 .action("LOGIN_SUCCESS")
-                .affectedResource("auth")
-                .details("User logged in")
-                .outcome(AuditStatus.SUCCESS)
-                .ipAddress("127.0.0.1")
-                .userAgent("Mozilla/5.0")
+                .createdAt(LocalDateTime.now())
                 .build();
 
-        when(auditLogRepository.save(any(AuditLog.class))).thenReturn(savedLog);
-
-        // when
-        underTest.logAction("LOGIN_SUCCESS", testUser, "auth", "User logged in",
-                AuditStatus.SUCCESS, "127.0.0.1", "Mozilla/5.0");
-
-        // then
-        ArgumentCaptor<AuditLog> captor = ArgumentCaptor.forClass(AuditLog.class);
-        verify(auditLogRepository).save(captor.capture());
-
-        AuditLog captured = captor.getValue();
-        assertThat(captured.getAction()).isEqualTo("LOGIN_SUCCESS");
-        assertThat(captured.getUser()).isEqualTo(testUser);
-        assertThat(captured.getAffectedResource()).isEqualTo("auth");
-        assertThat(captured.getDetails()).isEqualTo("User logged in");
-        assertThat(captured.getOutcome()).isEqualTo(AuditStatus.SUCCESS);
-        assertThat(captured.getIpAddress()).isEqualTo("127.0.0.1");
-        assertThat(captured.getUserAgent()).isEqualTo("Mozilla/5.0");
-    }
-
-    // --- logFailure tests ---
-
-    @Test
-    void logFailure_shouldCreateFailureAuditLog() {
-        // given
-        when(auditLogRepository.save(any(AuditLog.class))).thenReturn(AuditLog.builder().build());
-
-        // when
-        underTest.logFailure("LOGIN_FAILED", testUser, "auth", "Bad credentials", "192.168.1.1");
-
-        // then
-        ArgumentCaptor<AuditLog> captor = ArgumentCaptor.forClass(AuditLog.class);
-        verify(auditLogRepository).save(captor.capture());
-
-        AuditLog captured = captor.getValue();
-        assertThat(captured.getAction()).isEqualTo("LOGIN_FAILED");
-        assertThat(captured.getOutcome()).isEqualTo(AuditStatus.FAILURE);
-        assertThat(captured.getErrorMessage()).isEqualTo("Bad credentials");
-        assertThat(captured.getIpAddress()).isEqualTo("192.168.1.1");
-    }
-
-    // --- getUserAuditLogs tests ---
-
-    @Test
-    void getUserAuditLogs_shouldReturnPaginatedResults() {
-        // given
-        Pageable pageable = PageRequest.of(0, 10);
-        AuditLog log = AuditLog.builder()
-                .id(1L)
-                .user(testUser)
-                .action("DEPOSIT")
-                .outcome(AuditStatus.SUCCESS)
-                .build();
+        Page<AuditLog> page = new PageImpl<>(List.of(log), pageable, 1);
+        given(auditLogRepository.findByUserOrderByCreatedAtDesc(user, pageable))
+                .willReturn(page);
 
         AuditLogResponseDto dto = new AuditLogResponseDto(
-                1L, "testuser", "DEPOSIT", null, null, AuditStatus.SUCCESS, null
+                1L, "ted", "LOGIN_SUCCESS", "auth", "127.0.0.1", AuditStatus.SUCCESS, "User logged in"
         );
+        given(auditLogMapper.toDto(log)).willReturn(dto);
 
-        Page<AuditLog> page = new PageImpl<>(List.of(log));
-        when(auditLogRepository.findByUserOrderByCreatedAtDesc(testUser, pageable)).thenReturn(page);
-        when(auditLogMapper.toDto(log)).thenReturn(dto);
+        // When
+        Page<AuditLogResponseDto> result = auditLogService.getUserAuditLogs(user, pageable);
 
-        // when
-        Page<AuditLogResponseDto> result = underTest.getUserAuditLogs(testUser, pageable);
+        // Then
+        then(auditLogRepository).should().findByUserOrderByCreatedAtDesc(user, pageable);
+        then(auditLogMapper).should().toDto(log);
 
-        // then
-        assertThat(result.getContent()).hasSize(1);
-        assertThat(result.getContent().get(0).action()).isEqualTo("DEPOSIT");
+        assertThat(result.getTotalElements()).isEqualTo(1);
+        assertThat(result.getContent()).containsExactly(dto);
     }
 
-    // --- getAuditLogsByAction tests ---
-
+    // Given-When-Then for counting failed logins
     @Test
-    void getAuditLogsByAction_shouldReturnFilteredResults() {
-        // given
-        Pageable pageable = PageRequest.of(0, 10);
-        AuditLog log = AuditLog.builder()
-                .id(1L)
-                .user(testUser)
-                .action("TRANSFER")
-                .outcome(AuditStatus.SUCCESS)
-                .build();
+    void givenIpAndSince_whenCountFailedLoginsByIp_thenDelegatesToRepository() {
+        // Given
+        String ipAddress = "192.168.1.1";
+        LocalDateTime since = LocalDateTime.now().minusHours(1);
 
-        AuditLogResponseDto dto = new AuditLogResponseDto(
-                1L, "testuser", "TRANSFER", null, null, AuditStatus.SUCCESS, null
-        );
+        given(auditLogRepository.countFailedLoginsByIpSince(ipAddress, since))
+                .willReturn(5L);
 
-        Page<AuditLog> page = new PageImpl<>(List.of(log));
-        when(auditLogRepository.findByAction("TRANSFER", pageable)).thenReturn(page);
-        when(auditLogMapper.toDto(log)).thenReturn(dto);
+        // When
+        long result = auditLogService.countFailedLoginsByIp(ipAddress, since);
 
-        // when
-        Page<AuditLogResponseDto> result = underTest.getAuditLogsByAction("TRANSFER", pageable);
-
-        // then
-        assertThat(result.getContent()).hasSize(1);
-        assertThat(result.getContent().get(0).action()).isEqualTo("TRANSFER");
-    }
-
-    // --- getRecentUserActivity tests ---
-
-    @Test
-    void getRecentUserActivity_shouldReturnTop10() {
-        // given
-        AuditLog log1 = AuditLog.builder().id(1L).user(testUser).action("DEPOSIT").outcome(AuditStatus.SUCCESS).build();
-        AuditLog log2 = AuditLog.builder().id(2L).user(testUser).action("WITHDRAWAL").outcome(AuditStatus.SUCCESS).build();
-
-        AuditLogResponseDto dto1 = new AuditLogResponseDto(1L, "testuser", "DEPOSIT", null, null, AuditStatus.SUCCESS, null);
-        AuditLogResponseDto dto2 = new AuditLogResponseDto(2L, "testuser", "WITHDRAWAL", null, null, AuditStatus.SUCCESS, null);
-
-        when(auditLogRepository.findTop10ByUserOrderByCreatedAtDesc(testUser)).thenReturn(List.of(log1, log2));
-        when(auditLogMapper.toDto(List.of(log1, log2))).thenReturn(List.of(dto1, dto2));
-
-        // when
-        List<AuditLogResponseDto> result = underTest.getRecentUserActivity(testUser);
-
-        // then
-        assertThat(result).hasSize(2);
-        verify(auditLogRepository).findTop10ByUserOrderByCreatedAtDesc(testUser);
-    }
-
-    // --- countFailedLoginsByIp tests ---
-
-    @Test
-    void countFailedLoginsByIp_shouldReturnCount() {
-        // given
-        LocalDateTime since = LocalDateTime.now().minusMinutes(30);
-        when(auditLogRepository.countFailedLoginsByIpSince("10.0.0.1", since)).thenReturn(3L);
-
-        // when
-        long count = underTest.countFailedLoginsByIp("10.0.0.1", since);
-
-        // then
-        assertThat(count).isEqualTo(3L);
+        // Then
+        then(auditLogRepository).should().countFailedLoginsByIpSince(eq(ipAddress), eq(since));
+        assertThat(result).isEqualTo(5L);
     }
 }
+

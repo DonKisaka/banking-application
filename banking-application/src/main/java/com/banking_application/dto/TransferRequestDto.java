@@ -1,5 +1,6 @@
 package com.banking_application.dto;
 
+import com.banking_application.model.TransactionType;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotBlank;
@@ -18,6 +19,9 @@ public record TransferRequestDto(
         @DecimalMin(value = "0.01", message = "Amount must be at least 0.01")
         @Digits(integer = 15, fraction = 4, message = "Invalid amount format")
         BigDecimal amount,
+
+        @NotBlank(message = "The type of transaction is required")
+        TransactionType type,
 
         String description
 ) {}

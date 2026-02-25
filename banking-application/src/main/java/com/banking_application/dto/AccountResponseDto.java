@@ -13,4 +13,4 @@ public record AccountResponseDto(
   String currency,
   AccountStatus accountStatus,
   AccountType accountType
-){}
+)implements java.io.Serializable{}

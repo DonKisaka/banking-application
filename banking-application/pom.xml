@@ -68,7 +68,7 @@
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-aop</artifactId>
+			<artifactId>spring-boot-starter-aspectj</artifactId>
 		</dependency>
 
 		<dependency>
@@ -105,7 +105,7 @@
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-security-test</artifactId>
+			<artifactId>spring-boot-starter-security-test</artifactId>
 			<scope>test</scope>
 		</dependency>
         <dependency>

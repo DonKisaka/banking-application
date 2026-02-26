@@ -16,4 +16,4 @@ public record TransactionResponse(
    String description,
    String sourceAccountNumber,
    String targetAccountNumber
-) {}
+)implements java.io.Serializable{}

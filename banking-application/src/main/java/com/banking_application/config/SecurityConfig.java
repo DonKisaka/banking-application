@@ -60,12 +60,12 @@ public class SecurityConfig {
                 .webAuthn(wa -> wa
                         .rpId("localhost")
                         .rpName("HDFC Net Banking")
-                        .allowedOrigins("http://localhost:8080")
+                        .allowedOrigins("http://localhost:8082")
                 )
 
                 .oneTimeTokenLogin(ott ->
                         ott.tokenGenerationSuccessHandler((request, response, oneTimeToken) -> {
-                            String magicLink = "http://localhost:8080/login/ott?token=" + oneTimeToken.getTokenValue();
+                            String magicLink = "http://localhost:8082/login/ott?token=" + oneTimeToken.getTokenValue();
                             System.out.println();
                             System.out.println("========== MAGIC LINK ==========");
                             System.out.println(magicLink);
@@ -86,7 +86,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(List.of("http://localhost:8080", "http://localhost:3000"));
+        config.setAllowedOrigins(List.of("http://localhost:8082", "http://localhost:3000"));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);

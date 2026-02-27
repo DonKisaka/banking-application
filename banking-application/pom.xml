@@ -171,6 +171,41 @@
 					</excludes>
 				</configuration>
 			</plugin>
+			<plugin>
+				<groupId>com.microsoft.azure</groupId>
+				<artifactId>azure-webapp-maven-plugin</artifactId>
+				<version>2.13.0</version>
+				<configuration>
+					<schemaVersion>v2</schemaVersion>
+					<subscriptionId>2a50472d-b9ac-4163-a61b-960047cd087b</subscriptionId>
+					<resourceGroup>banking-app</resourceGroup>
+					<appName>banking-application</appName>
+					<pricingTier>B1</pricingTier>
+					<region>centralindia</region>
+					<runtime>
+						<os>Linux</os>
+						<webContainer>Java SE</webContainer>
+						<javaVersion>Java 25</javaVersion>
+					</runtime>
+					<appSettings>
+						<property>
+							<name>SPRING_PROFILES_ACTIVE</name>
+							<value>azure</value>
+						</property>
+					</appSettings>
+					<deployment>
+						<resources>
+							<resource>
+								<type>jar</type>
+								<directory>${project.basedir}/target</directory>
+								<includes>
+									<include>*.jar</include>
+								</includes>
+							</resource>
+						</resources>
+					</deployment>
+				</configuration>
+			</plugin>
 		</plugins>
 	</build>
 

@@ -158,7 +158,7 @@ class TransactionServiceTest {
     @Test
     void givenSameSourceAndTarget_whenTransfer_thenThrowsInvalidTransactionExceptionAndNoLookups() {
         // Given
-        TransferRequestDto dto = new TransferRequestDto("ACC123", "ACC123", BigDecimal.ONE, "self");
+        TransferRequestDto dto = new TransferRequestDto("ACC123", "ACC123", BigDecimal.ONE, TransactionType.TRANSFER, "self");
         User user = User.builder().username("kimberly").build();
 
         // When + Then

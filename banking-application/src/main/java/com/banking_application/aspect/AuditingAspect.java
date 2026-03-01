@@ -22,10 +22,7 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.Optional;
 
-/**
- * AOP aspect that automatically audits method execution for methods annotated with {@link Auditable}.
- * Logs success and failure to AuditLogService.
- */
+
 @Aspect
 @Component
 public class AuditingAspect {

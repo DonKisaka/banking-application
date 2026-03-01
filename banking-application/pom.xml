@@ -95,12 +95,12 @@
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-data-jpa-test</artifactId>
+			<artifactId>spring-boot-starter-data-jpa-test</artifactId>
 			<scope>test</scope>
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-webmvc-test</artifactId>
+			<artifactId>spring-boot-starter-webmvc-test</artifactId>
 			<scope>test</scope>
 		</dependency>
 		<dependency>
@@ -180,13 +180,13 @@
 					<subscriptionId>2a50472d-b9ac-4163-a61b-960047cd087b</subscriptionId>
 					<resourceGroup>banking-app</resourceGroup>
 					<appName>banking-application</appName>
-					<pricingTier>B1</pricingTier>
-					<region>centralindia</region>
-					<runtime>
-						<os>Linux</os>
-						<webContainer>Java SE</webContainer>
-						<javaVersion>Java 25</javaVersion>
-					</runtime>
+                    <pricingTier>B1</pricingTier>
+                    <region>centralindia</region>
+                    <runtime>
+                        <os>Linux</os>
+                        <webContainer>Java SE</webContainer>
+                        <javaVersion>Java 25</javaVersion>
+                    </runtime>
 					<appSettings>
 						<property>
 							<name>SPRING_PROFILES_ACTIVE</name>

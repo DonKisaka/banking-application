@@ -12,9 +12,8 @@ import java.util.Base64;
 @Converter
 public class EncryptionConverter implements AttributeConverter<String, String> {
     private static final String ALGORITHM = "AES/ECB/PKCS5Padding";
-    // NOTE: In a real HDFC app, move this key to an environment variable or Azure Key Vault!
-    // AES key must be exactly 16, 24, or 32 bytes (128, 192, or 256 bits)
-    private static final String SECRET_KEY = "MySecretKey12345"; // 16 bytes for AES-128
+
+    private static final String SECRET_KEY = "MySecretKey12345";
 
     @Override
     public String convertToDatabaseColumn(String attribute) {
